@@ -59,6 +59,10 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-ecg-trace{filter:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-ecg-trace{filter:none}' +
       '@keyframes sb-ecg{from{stroke-dashoffset:0}to{stroke-dashoffset:-109}}' +
+      '.dsh-sb-shell [data-sb] .sb-tools{flex-wrap:wrap;gap:4px}' +
+      /* Six buttons have to fit 278px of card. Tighten the padding and the gap
+         rather than let the row wrap into a second line nobody expects. */
+      '.dsh-sb-shell [data-sb] .sb-tools .sb-fx{padding:2px 6px}' +
       /* Tool row: keep the group hard right instead of letting every .sb-fx
          claim an auto margin, and make the X read as a close. */
       '.dsh-sb-shell [data-sb] .sb-tools .sb-fx{margin-left:0}' +
@@ -69,6 +73,16 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-tools .sb-fx.on{color:var(--sb-accent);border-color:rgba(var(--sb-glow),.8);box-shadow:0 0 9px rgba(var(--sb-glow),.28)}' +
       '.dsh-sb-shell [data-sb] .sb-tools .sb-fx.on:hover{color:#fff;border-color:var(--sb-accent)}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-tools .sb-fx.on{box-shadow:none}' +
+      /* ---- card placement ---------------------------------------------------
+         The corner anchor turns the card round: its bottom-right corner lands
+         on the strip's top-left corner, the tail points down at the chip, and
+         the card grows up and left - a menu pinned to the corner instead of a
+         panel lying over the strip. */
+      '.dsh-sb-shell [data-sb] .sb-card.corner{left:auto;right:100%;bottom:calc(100% + 5px);border-bottom-right-radius:3px}' +
+      '.dsh-sb-shell [data-sb] .sb-card.corner::after{left:auto;right:11px}' +
+      '.dsh-sb-shell [data-sb] .sb-card.dragging{animation:none;cursor:grabbing}' +
+      '.dsh-sb-shell [data-sb] .dsh-sb-card-head{cursor:grab;touch-action:none}' +
+      '.dsh-sb-shell [data-sb] .dsh-sb-card-head:active{cursor:grabbing}' +
       '.dsh-sb-shell [data-sb] .sb-card .dsh-sb-card-head{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:rgba(150,170,190,.85);margin-bottom:5px}' +
       /* ---- pixel mode: low-frame, low-paint ------------------------------
          For RDP and other software-rendered sessions. The strip keeps moving,
@@ -202,6 +216,15 @@ window.__ModuleLoader__.load({
     const STORE_FX = 'dsh.statusbar.fx';
     const STORE_PIXEL = 'dsh.statusbar.pixel';
     const STORE_FLOW = 'dsh.statusbar.flow';
+    const STORE_ANCHOR = 'dsh.statusbar.anchor';
+
+    /* Where the card hangs off the strip. `above` is the original: left edges
+       aligned, sitting over the strip. `corner` drops the card's bottom-right
+       corner onto the strip's top-left corner, so it grows up and to the left
+       like a menu pinned to that corner. */
+    const ANCHOR_ABOVE = 'above';
+    const ANCHOR_CORNER = 'corner';
+    const CARD_W = 300;
 
     /* Flow lanes. `beads` is the original travelling-particle line; `ecg` is a
        flat heartbeat trace with one bright pulse sweeping it. Both read the same
@@ -389,6 +412,15 @@ window.__ModuleLoader__.load({
       const [phrase, setPhrase] = React.useState(0);
       const [glyph, setGlyph] = React.useState(0);
       const [done, setDone] = React.useState(null);
+      const [anchor, setAnchor] = React.useState(() =>
+        readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]),
+      );
+      /* Corner mode needs a card's worth of room to the left of the strip, which
+         only exists on a wide window. Measured once per opening rather than per
+         render - the strip repaints several times a second. */
+      const [cornerOk, setCornerOk] = React.useState(true);
+      const [drag, setDrag] = React.useState(null);
+      const [dragging, setDragging] = React.useState(false);
       /* Rehearsal. A live turn is the only thing that can normally make the strip
          breathe, so a reader who just wants to look at the motion has to send a
          prompt and pay for it. This flag injects the *working* state instead:
@@ -400,6 +432,8 @@ window.__ModuleLoader__.load({
 
       const barRef = React.useRef(null);
       const splashRef = React.useRef(null);
+      const cardRef = React.useRef(null);
+      const dragRef = React.useRef(null);
       const closeTimer = React.useRef(0);
       const workStart = React.useRef(0);
       const doneTimer = React.useRef(0);
@@ -456,6 +490,50 @@ window.__ModuleLoader__.load({
         setDemo(false);
         workStart.current = Date.now();
       }, [demo, realWorking]);
+
+      /* Corner mode is only honest while there is somewhere for the card to go:
+         it grows leftwards, so it needs its own width plus a margin between the
+         window edge and the strip's left edge. Measured on open, not per render. */
+      React.useEffect(() => {
+        if (!cardOpen) return;
+        const bar = barRef.current;
+        const rect = bar === null ? null : bar.getBoundingClientRect();
+        setCornerOk(rect !== null && rect.left >= CARD_W + 16);
+      }, [cardOpen]);
+
+      /* Dragging lives on the header. The window is listened to instead of the
+         card so a fast pointer that outruns the repaint does not drop the
+         gesture, and the card is pinned for its duration so its own mouse-leave
+         cannot close it mid-drag. Offsets are clamped against the measured,
+         untransformed box, so they never creep. */
+      React.useEffect(() => {
+        if (!dragging) return () => {};
+        const move = (event) => {
+          const base = dragRef.current;
+          if (base === null) return;
+          const loX = 6 - base.left0;
+          const hiX = window.innerWidth - 6 - base.left0 - base.w;
+          const loY = 6 - base.top0;
+          const hiY = window.innerHeight - 6 - base.top0 - base.h;
+          const clamp = (value, lo, hi) => Math.max(Math.min(lo, hi), Math.min(Math.max(lo, hi), value));
+          setDrag({
+            dx: clamp(base.dx0 + event.clientX - base.sx, loX, hiX),
+            dy: clamp(base.dy0 + event.clientY - base.sy, loY, hiY),
+          });
+        };
+        const stop = () => {
+          dragRef.current = null;
+          setDragging(false);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', stop);
+        window.addEventListener('pointercancel', stop);
+        return () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', stop);
+          window.removeEventListener('pointercancel', stop);
+        };
+      }, [dragging]);
 
       React.useEffect(
         () => () => {
@@ -543,6 +621,40 @@ window.__ModuleLoader__.load({
         setDemo((previous) => !previous);
         window.setTimeout(() => pulseAt(58), 0);
       };
+
+      const toggleAnchor = () => {
+        setAnchor((previous) => {
+          const next = previous === ANCHOR_CORNER ? ANCHOR_ABOVE : ANCHOR_CORNER;
+          writeStored(STORE_ANCHOR, next);
+          return next;
+        });
+      };
+
+      /* Grab the header: record the pointer, the offset it started from, and the
+         box as it would sit with no offset at all, which is what the clamps are
+         expressed against. */
+      const startDrag = (event) => {
+        if (event.button !== 0 || event.pointerType === 'touch') return;
+        const card = cardRef.current;
+        if (card === null) return;
+        event.preventDefault();
+        const rect = card.getBoundingClientRect();
+        const dx0 = drag === null ? 0 : drag.dx;
+        const dy0 = drag === null ? 0 : drag.dy;
+        dragRef.current = {
+          sx: event.clientX,
+          sy: event.clientY,
+          dx0: dx0,
+          dy0: dy0,
+          left0: rect.left - dx0,
+          top0: rect.top - dy0,
+          w: rect.width,
+          h: rect.height,
+        };
+        setPinned(true);
+        setDragging(true);
+      };
+      const resetDrag = () => setDrag(null);
 
       /* ---- real figures, from the same projections the shipped cells read ---- */
       const turns = num(stats && stats.turns);
@@ -665,12 +777,27 @@ window.__ModuleLoader__.load({
         ? h(
             'div',
             {
-              className: 'sb-card' + (pinned ? ' pinned' : ''),
+              className:
+                'sb-card' +
+                (pinned ? ' pinned' : '') +
+                (anchor === ANCHOR_CORNER && cornerOk ? ' corner' : '') +
+                (dragging ? ' dragging' : ''),
+              ref: cardRef,
+              style: drag === null ? undefined : { transform: 'translate(' + drag.dx + 'px,' + drag.dy + 'px)' },
               onClick: (event) => event.stopPropagation(),
               onMouseEnter: openCard,
               onMouseLeave: closeCardSoon,
             },
-            h('div', { className: 'dsh-sb-card-head' }, t('card.title')),
+            h(
+              'div',
+              {
+                className: 'dsh-sb-card-head',
+                title: t('card.drag'),
+                onPointerDown: startDrag,
+                onDoubleClick: resetDrag,
+              },
+              t('card.title'),
+            ),
             row(t('card.state'), stateLabel),
             row(t('card.turns'), String(turns) + ' / ' + String(steps)),
             row(t('card.rate'), rate > 0 ? Math.round(rate) + ' tok/s' : '\u2014'),
@@ -730,6 +857,19 @@ window.__ModuleLoader__.load({
                   },
                 },
                 demo ? t('demo.on') : t('demo.off'),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'sb-fx sb-anchor',
+                  title: anchor === ANCHOR_CORNER ? t('anchor.title.corner') : t('anchor.title.above'),
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    toggleAnchor();
+                  },
+                },
+                anchor === ANCHOR_CORNER ? t('anchor.corner') : t('anchor.above'),
               ),
               h(
                 'button',
@@ -857,6 +997,11 @@ window.__ModuleLoader__.load({
       'demo.title.off': 'play the working animations without sending a prompt',
       'demo.title.on': 'stop the rehearsal - the strip settles and reports the time it ran',
       'state.demo': 'working (demo)',
+      'anchor.above': 'above',
+      'anchor.corner': 'corner',
+      'anchor.title.above': 'card hangs over the strip, left edges aligned - click to sit it on the strip corner',
+      'anchor.title.corner': 'card sits on the strip top-left corner - click to hang it above',
+      'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
     };
     const zh = {
@@ -895,6 +1040,11 @@ window.__ModuleLoader__.load({
       'demo.title.off': '不发送消息，直接播放工作中的动画',
       'demo.title.on': '结束演示 — 状态条会停下并报出这次跑了多久',
       'state.demo': '工作中（演示）',
+      'anchor.above': '上方',
+      'anchor.corner': '角上',
+      'anchor.title.above': '卡片挂在状态条上方、左对齐 — 点击改为贴在状态条左角',
+      'anchor.title.corner': '卡片贴在状态条左上角 — 点击改回挂在状态条上方',
+      'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
     };
 

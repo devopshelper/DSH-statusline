@@ -94,9 +94,26 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 | `fx off` | kills whole-surface effects but keeps state identical |
 | `beads` / `bpm` | switches the flow lane between travelling beads and a flat heartbeat trace |
 | `demo` | rehearses the working state without sending a prompt |
+| `above` / `corner` | where the card hangs off the strip (see below) |
+| drag the card header | moves the card anywhere; double-click the header to put it back |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`.
+
+## Card placement
+
+The card is anchored to the strip, never to the pointer, and it has two anchors:
+
+| | `above` (default) | `corner` |
+|---|---|---|
+| geometry | `left: 12px; bottom: calc(100% + 8px)` | `right: 100%; bottom: calc(100% + 5px)` |
+| reads as | a panel lying over the strip | a menu pinned to the strip's top-left corner |
+| tail | centred under the card | near the card's bottom-right, pointing at the corner |
+
+In `corner` the card's bottom-right corner meets the strip's top-left corner and the card grows up and to the left, so its **right** edge is what aligns with the strip rather than its left edge. That needs a card's worth of room outside the strip, which only exists when the window is wider than the strip plus `300px + 16px`, so the room is measured once per opening and the card silently falls back to `above` when it is not there — otherwise it would hang off the left edge of the window.
+
+Dragging is orthogonal to the anchor: it records a `translate()` offset on top of whichever anchor is active, pinned for the duration so the card's own mouse-leave cannot close it mid-gesture. Offsets are clamped against the measured, *untransformed* box, so repeated drags cannot creep and the card cannot be lost off-screen. The offset is session-scoped (it is not persisted) and a double-click on the header clears it; the anchor itself is persisted.
+
 
 ## Demo mode
 
