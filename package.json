@@ -18,6 +18,10 @@
     "icon.svg",
     "styles/*.css",
     "scripts/*.mjs",
+    "install.ps1",
+    "install.cmd",
+    "uninstall.ps1",
+    "uninstall.cmd",
     "README.md"
   ],
   "scripts": {

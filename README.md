@@ -74,21 +74,49 @@ The script uses `JSON.stringify` for the splice. That detail matters: serializin
 
 ## Install
 
-From a DSH session in this profile:
+### Script
+
+```powershell
+.\install.cmd                       # double-click wrapper
+.\install.ps1 -DryRun               # print the plan, change nothing
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+`install.ps1` performs both halves of an install, because only one of them is a pnpm command:
+
+1. `dsh plugin --profile <profile> add <this directory>` — links the package into the profile
+2. registers it in the profile's `dsh.profile.bundles` — **this is what actually activates it**, and it has no CLI
+
+It backs the profile manifest up before editing, restores it if registration fails, reads the result back to confirm, and is idempotent: re-running changes nothing and leaves no backup litter.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `-Profile` | `$env:DSH_PROFILE`, else `desktop` | profile under `%USERPROFILE%\.dsh\profiles` |
+| `-Source` | this script's directory | package directory to install |
+| `-DryRun` | — | print the plan, change nothing |
+
+Remove it again with `.\uninstall.cmd` (dry run: `.\uninstall.ps1 -DryRun`). Uninstalling restores the shipped pills, since they were only ever shadowed.
+
+> The `.cmd` wrappers exist because the default Windows execution policy blocks unsigned `.ps1` files.
+
+### From an agent session
 
 ```
 plugin_manager install_bundle  target: <absolute path to this directory>
 ```
 
-The profile links the directory, so edits to `client.js` need a `remove_bundle` + `install_bundle` cycle (a fresh module generation) and a page refresh.
+Either route links the directory rather than copying it, so edits to `client.js` need a remove + add cycle (a fresh module generation) plus a page refresh.
 
 ## Structure
 
 ```
 client.src.js        editable client source (CSS placeholder)
-client.js            generated bundle — do not edit by hand
+client.js            generated bundle - do not edit by hand
 styles/statusbar.css vendored portable stylesheet (attribute-driven, 12 themes)
-scripts/build.mjs    splice css → client.js
+scripts/build.mjs    splice css -> client.js
+scripts/register.mjs add/remove the bundle in a profile manifest
+install.ps1/.cmd     installer (link + register, with backups)
+uninstall.ps1/.cmd   remover
 cordis.patch.yml     inserts the bundle row
 index.js             host half (no host behaviour)
 locale/en.json       Plugin Manager display metadata
