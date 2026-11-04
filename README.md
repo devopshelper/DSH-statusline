@@ -1,10 +1,9 @@
 # DSH Statusline
 
-A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits **above** the harness's own status pills under the composer, in a dock cell of its own — nothing is hidden or replaced.
+A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits in a dock cell of its own under the composer, beside the harness's own status pills — nothing is hidden or replaced.
 
 ```
-✻ DeepSeek Harness · ◌ in the ether Zzzz · ••••••••     ⚡99% ▰▰▰▰▰ · 25% ctx · 21.9M tok · ↑178.2k ↓129.9k · ⏱ 15m
-  5 turns 104 steps · 216 tok/s        11.4M tok · Cache hit 99%        ◯ 19%        ← the shipped line stays
+✻ DeepSeek Harness · ◌ in the ether Zzzz · ••••••••   ⚡99% ▰▰▰▰▰ · 25% ctx · 21.9M tok · ⏱ 15m
 ```
 
 The same facts the shipped pills report — decode rate, billed tokens, cache-hit share, context occupancy, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle.
@@ -17,7 +16,7 @@ The same facts the shipped pills report — decode rate, billed tokens, cache-hi
 ctx.slots.register({ name: 'conversation.composer.dock', id: 'statusline', order: -1, ... }, StatusLine)
 ```
 
-`order: -1` puts the strip first, and `flex: 1 1 100%` on the shell asks for a full line, so in a wrapping dock row the shipped `activity` (order 0) and `usage` (order 1) pills fall to the line below. In a non-wrapping row the strip shrinks beside them instead of overflowing.
+`order: -1` puts the strip first in the row. The row itself lays its entries out **inline, on one line** — verified against a live session: the shipped `activity` (order 0) and `usage` (order 1) pills render *beside* the strip, not below it. No CSS on this entry can move a sibling onto a second line, because that needs the owner's own container to wrap. The strip caps its own width instead (`max-width: var(--sb-shell-max, 980px)`) so the two fit side by side.
 
 ### Taking the cells over instead
 
@@ -132,6 +131,7 @@ icon.svg             original artwork
 ## Notes and limits
 
 - The context ring to the right of the strip is **composer chrome, not a slot** (`conversation.input.activity` has no occupants and no other ui-chat registration paints a percentage). It is left untouched rather than styled through another package's internal class names.
-- The shipped line stays visible below the strip, so `ctx`, `tok` and cache-hit appear twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
+- The shipped line stays visible beside the strip, so `ctx`, `tok` and cache-hit appear twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
+- They cannot be stacked vertically: the dock row is a single inline line, so a second row would require changing the owner's container. Choose between "beside" (current) and "takeover" (one line, no shipped pills).
 - `🪟` and `📦` rendered as tofu in the composer font stack, so `ctx` and `tok` are plain text.
 - Visual verification is per-screenshot; there is no browser automation in this setup.
