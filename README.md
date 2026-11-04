@@ -3,10 +3,10 @@
 A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits in a dock cell of its own under the composer, beside the harness's own status pills — nothing is hidden or replaced.
 
 ```
-✻ DeepSeek Harness · ◌ in the ether Zzzz · ••••••••   ⚡99% ▰▰▰▰▰ · 25% ctx · 21.9M tok · ⏱ 15m
+✻ DeepSeek Harness · ◌ in the ether Zzzz · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
 ```
 
-The same facts the shipped pills report — decode rate, billed tokens, cache-hit share, context occupancy, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle.
+The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter.
 
 ## How it attaches
 
@@ -54,8 +54,8 @@ Everything comes from session projections — no polling, no client-side folding
 | Projection | Used for |
 |---|---|
 | `sessionStats` | turns, steps, `decodeTokens / decodeMs` → tok/s (drives bead speed), `llmMs + toolMs` → wall time |
-| `tokenUsage` | billed total (`uncached + output + cacheRead + cacheWrite`), cache-hit % (`cacheRead / promptSide`), `↑in ↓out` |
-| `contextPressure` | `projectedTokens ?? pressureTokens` / `contextWindow` → ctx %, clamped at 100 |
+| `tokenUsage` | cache-hit % (`cacheRead / promptSide`), `↑uncached ↓output`, and the card's billed total (`uncached + output + cacheRead + cacheWrite`) |
+| `contextPressure` | `projectedTokens ?? pressureTokens` / `contextWindow` → ctx %, clamped at 100 (card only) |
 | `contextBreakdown` | surface composition, shown in the card |
 
 Busy state comes from `useSessionStatus` — the session status stream, never token activity — so the breath cannot flicker idle between tool calls.
@@ -64,7 +64,7 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 
 | Action | Result |
 |---|---|
-| hover the `✻ DeepSeek Harness` chip | card with turns/steps, decode rate, tokens, cache, context, surface + 12 palette swatches + FX toggle |
+| hover the `✻ DeepSeek Harness` chip | card with turns/steps, decode rate, billed tokens, cache, context occupancy, surface + 12 palette swatches + pixel toggle |
 | click the chip | pin / unpin the card |
 | click anywhere on the strip | converging wave crests, fired from the click point |
 | palette swatch | repaints every glow (four custom properties carry the whole theme) |
@@ -163,6 +163,27 @@ The uninstall/install round-trip is what forces that new generation; `git pull` 
 
 Your settings survive an update: theme, pixel and FX choices live in the browser's `localStorage`, not in the repo.
 
+## Recolouring DSH's own context meter
+
+The ring + percentage the shipped composer draws beside this strip is not a slot, and it does not use a colour of its own — it inherits DSH's label tokens:
+
+```css
+.A6Bq1a_trigger { color: var(--dsw-alias-label-tertiary) }                 /* the % */
+.A6Bq1a_fill    { stroke: var(--dsw-alias-label-tertiary) }                /* the arc */
+.A6Bq1a_trigger:hover, [aria-expanded="true"] { color: var(--dsw-alias-label-secondary) }
+```
+
+So it is recolourable without touching the harness — one variable, no rebuild:
+
+```css
+:root { --dsh-sb-ctx: #00e5ff }                 /* ring + percentage */
+:root { --dsh-sb-ctx-hover: #7af0ff }           /* optional; defaults to --dsh-sb-ctx */
+```
+
+Paste it in DevTools to preview, or keep it in any always-on user stylesheet. The plugin already ships the rules, inert until the variable is set, and resolves to the shipped tokens when it isn't.
+
+The rules are scoped structurally — `[data-composer-dock]` plus the meter's 14px `viewBox` ring — rather than by the hashed class name in the snippet above, because that hash changes between DSH builds.
+
 ## Structure
 
 ```
@@ -182,8 +203,9 @@ icon.svg             original artwork
 
 ## Notes and limits
 
-- The context ring to the right of the strip is **composer chrome, not a slot** (`conversation.input.activity` has no occupants and no other ui-chat registration paints a percentage). It is left untouched rather than styled through another package's internal class names.
-- The shipped line stays visible below the strip, so `ctx`, `tok` and cache-hit appear twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
+- The context ring to the right of the strip is **composer chrome, not a slot** (`conversation.input.activity` has no occupants; `ContextMeter` is rendered directly by the composer's dock, after the slot). Its colour is reachable through the variables above; nothing else about it is touched.
+- The shipped line stays visible below the strip, so cache-hit appears twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
+- `ctx` and `tok` were dropped from the strip: the harness already renders context occupancy, and both figures are still in the hover card.
 - Stacking relies on `:has()` matching the strip's own container. It is deliberately written against our element rather than the owner's classes, so the failure mode is "pills sit beside the strip again", not a broken layout elsewhere.
-- `🪟` and `📦` rendered as tofu in the composer font stack, so `ctx` and `tok` are plain text.
+- `🪟` and `📦` rendered as tofu in the composer font stack, so `ctx` and `tok` were plain text (and are now gone).
 - Visual verification is per-screenshot; there is no browser automation in this setup.

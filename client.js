@@ -57,6 +57,18 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-status{text-shadow:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-splash{display:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel][data-sb-hover]{filter:none!important}' +
+      /* ---- DSH's own context meter -----------------------------------------
+         The ring and percentage the shipped composer draws after this slot.
+         Inert until told otherwise: set --dsh-sb-ctx to any CSS colour on an
+         ancestor (or :root) and both the reading and the arc take it;
+         --dsh-sb-ctx-hover covers the hover / expanded state. Unset, these
+         rules resolve to the exact tokens the shipped meter already uses.
+         Selector is structural on purpose — the shipped class hash changes
+         between builds, but [data-composer-dock] and the 14px ring do not. */
+      '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button{color:var(--dsh-sb-ctx,var(--dsw-alias-label-tertiary))}' +
+      '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button>svg>circle+circle{stroke:var(--dsh-sb-ctx,var(--dsw-alias-label-tertiary))}' +
+      '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button:hover,' +
+      '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button[aria-expanded="true"]{color:var(--dsh-sb-ctx-hover,var(--dsh-sb-ctx,var(--dsw-alias-label-secondary)))}' +
       '@media (prefers-reduced-motion:reduce){.dsh-sb-shell [data-sb]{animation:none!important}}';
 
     const GLYPHS = ['\u273B', '\u273D', '\u2736', '\u2733', '\u2722', '\u00B7'];
@@ -389,12 +401,6 @@ window.__ModuleLoader__.load({
           ? metric('cache', 'dsh-sb-nodata', t('metric.cache.pending'), '\u26A1 \u2014')
           : metric('cache', cacheTone(cachePercent), t('metric.cache') + ' ' + cachePercent + '%', ['\u26A1 ', String(cachePercent), '%', ' ', blockMeter]),
         h('span', { className: 'sb-sep' }, '\u00B7'),
-        contextPercent === null
-          ? metric('ctx', 'dsh-sb-nodata', t('metric.context.pending'), 'ctx \u2014')
-          : metric('ctx', contextTone(contextPercent), t('metric.context') + ' ' + compact(occupied) + ' / ' + compact(windowSize), [String(contextPercent), '% ctx']),
-        h('span', { className: 'sb-sep dsh-sb-tokens' }, '\u00B7'),
-        metric('tokens', 'dsh-sb-tokens dsh-sb-dim', t('metric.tokens'), billed > 0 ? compact(billed) + ' tok' : 'tok \u2014'),
-        h('span', { className: 'sb-sep dsh-sb-split' }, '\u00B7'),
         metric('split', 'dsh-sb-split dsh-sb-dim', t('metric.split'), '\u2191' + compact(uncachedIn) + ' \u2193' + compact(outTokens)),
         h('span', { className: 'sb-sep' }, '\u00B7'),
         metric('wall', 'dsh-sb-dim', t('metric.wall'), '\u23F1 ' + duration(wallMs)),
@@ -551,9 +557,6 @@ window.__ModuleLoader__.load({
       'flow.idle': 'particles barely drifting',
       'metric.cache': 'prompt tokens served from cache —',
       'metric.cache.pending': 'no cached prompt sample yet',
-      'metric.context': 'context occupancy —',
-      'metric.context.pending': 'no context sample yet',
-      'metric.tokens': 'billed tokens across input, output and cache traffic',
       'metric.split': 'uncached input · output',
       'metric.wall': 'model plus tool wall time this session',
       'card.title': 'status bar',
@@ -580,9 +583,6 @@ window.__ModuleLoader__.load({
       'flow.idle': '粒子缓缓漂移',
       'metric.cache': '缓存命中的提示词比例 —',
       'metric.cache.pending': '尚无缓存样本',
-      'metric.context': '上下文占用 —',
-      'metric.context.pending': '尚无上下文样本',
-      'metric.tokens': '输入、输出与缓存合计计费 token',
       'metric.split': '未缓存输入 · 输出',
       'metric.wall': '本会话模型与工具耗时',
       'card.title': '状态栏',
