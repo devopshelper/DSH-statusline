@@ -16,7 +16,20 @@ The same facts the shipped pills report — decode rate, billed tokens, cache-hi
 ctx.slots.register({ name: 'conversation.composer.dock', id: 'statusline', order: -1, ... }, StatusLine)
 ```
 
-`order: -1` puts the strip first in the row. The row itself lays its entries out **inline, on one line** — verified against a live session: the shipped `activity` (order 0) and `usage` (order 1) pills render *beside* the strip, not below it. No CSS on this entry can move a sibling onto a second line, because that needs the owner's own container to wrap. The strip caps its own width instead (`max-width: var(--sb-shell-max, 980px)`) so the two fit side by side.
+`order: -1` puts the strip first in the row. The row lays its entries out on a single flex line, so the strip asks for a whole line and switches wrapping on for the element that holds it:
+
+```css
+.dsh-sb-shell            { flex: 1 1 100% }                    /* ask for a line */
+:is(div,section,ul):has(> .dsh-sb-shell),
+:is(div,section,ul):has(> * > .dsh-sb-shell) {
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+}
+```
+
+The `:has()` selectors match only an element that *directly contains this plugin's own shell* — no class names borrowed from the owner — so the shipped `activity` and `usage` pills land on a centred second line. If upstream ever restructures that markup the selectors stop matching and the layout degrades to side-by-side rather than restyling someone else's element. Two depths are covered because a slot renderer may or may not wrap each entry in its own element.
+
+The strip caps its own width (`max-width: var(--sb-shell-max, 980px)`) and centres itself with `margin-inline: auto`.
 
 ### Taking the cells over instead
 
@@ -148,7 +161,7 @@ icon.svg             original artwork
 ## Notes and limits
 
 - The context ring to the right of the strip is **composer chrome, not a slot** (`conversation.input.activity` has no occupants and no other ui-chat registration paints a percentage). It is left untouched rather than styled through another package's internal class names.
-- The shipped line stays visible beside the strip, so `ctx`, `tok` and cache-hit appear twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
-- They cannot be stacked vertically: the dock row is a single inline line, so a second row would require changing the owner's container. Choose between "beside" (current) and "takeover" (one line, no shipped pills).
+- The shipped line stays visible below the strip, so `ctx`, `tok` and cache-hit appear twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
+- Stacking relies on `:has()` matching the strip's own container. It is deliberately written against our element rather than the owner's classes, so the failure mode is "pills sit beside the strip again", not a broken layout elsewhere.
 - `🪟` and `📦` rendered as tofu in the composer font stack, so `ctx` and `tok` are plain text.
 - Visual verification is per-screenshot; there is no browser automation in this setup.

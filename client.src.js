@@ -21,7 +21,15 @@ window.__ModuleLoader__.load({
          shipped pills fall to the line below, and in a non-wrapping row the
          strip simply shrinks beside them instead of overflowing. */
       '.dsh-sb-shell{display:block;width:100%;flex:1 1 100%;min-width:0;margin:1px 0}' +
-      '.dsh-sb-shell [data-sb]{display:flex;align-items:center;flex-wrap:nowrap;width:100%;max-width:var(--sb-shell-max,980px);box-sizing:border-box;border:1px solid rgba(var(--sb-glow),.16);border-radius:10px}' +
+      /* Stack the shipped pills *under* the strip.
+         The dock row renders its entries on a single flex line, so a child
+         cannot move a sibling to another row on its own. This matches only the
+         element that DIRECTLY contains our own shell - no class names borrowed
+         from the owner - and turns wrapping on there. If the owner ever
+         restructures its markup the selector simply stops matching and the
+         layout degrades to "beside", never to someone else's element. */
+      ':is(div,section,ul):has(> .dsh-sb-shell),:is(div,section,ul):has(> * > .dsh-sb-shell){flex-wrap:wrap!important;justify-content:center!important;row-gap:4px}' +
+      '.dsh-sb-shell [data-sb]{display:flex;align-items:center;flex-wrap:nowrap;width:100%;max-width:var(--sb-shell-max,980px);margin:0 auto;box-sizing:border-box;border:1px solid rgba(var(--sb-glow),.16);border-radius:10px}' +
       '.dsh-sb-shell [data-sb] .sb-group{min-width:0}' +
       '.dsh-sb-shell [data-sb] .sb-status{flex:0 1 auto;min-width:0}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-flow,.dsh-sb-shell [data-sb] .sb-sep,.dsh-sb-shell [data-sb] .dsh-sb-chip,.dsh-sb-shell [data-sb] .dsh-sb-metric{flex:0 0 auto}' +
