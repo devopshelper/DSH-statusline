@@ -42,6 +42,8 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-warn{color:#ffc400}' +
       '.dsh-sb-shell [data-sb] .sb-bad{color:#ff5252}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-nodata{opacity:.45}' +
+      /* Turn-end word: accent, upright, no dots or Zzzz - it is a full stop. */
+      '.dsh-sb-shell [data-sb] .sb-status.sb-done{font-style:normal;font-weight:600;color:var(--sb-accent);text-shadow:0 0 9px rgba(var(--sb-glow),.45)}' +
       '.dsh-sb-shell [data-sb] .sb-card .dsh-sb-card-head{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:rgba(150,170,190,.85);margin-bottom:5px}' +
       /* ---- pixel mode: low-frame, low-paint ------------------------------
          For RDP and other software-rendered sessions. The strip keeps moving,
@@ -73,15 +75,48 @@ window.__ModuleLoader__.load({
 
     const GLYPHS = ['\u273B', '\u273D', '\u2736', '\u2733', '\u2722', '\u00B7'];
 
-    const WORK_PHRASES = [
-      'Cogitating like crazy',
-      'reticulating splines',
-      'consulting the rubber duck',
-      'herding semicolons',
-      'marinating in context',
-      'thinking in vectors',
-      'assembling thought particles',
+    /* The spinner vocabulary, verbatim from Claude Code's own array — 187 words
+       pulled out of the shipped binary. The terminal picks one per session and
+       holds it; the strip rotates, which is the only deliberate departure.
+       Trailing dots are drawn separately, so no ellipsis belongs in the word. */
+    const WORK_VERBS = [
+      'Accomplishing', 'Actioning', 'Actualizing', 'Architecting', 'Baking', 'Beaming',
+      'Beboppin\'', 'Befuddling', 'Billowing', 'Blanching', 'Bloviating', 'Boogieing',
+      'Boondoggling', 'Booping', 'Bootstrapping', 'Brewing', 'Bunning', 'Burrowing',
+      'Calculating', 'Canoodling', 'Caramelizing', 'Cascading', 'Catapulting', 'Cerebrating',
+      'Channeling', 'Channelling', 'Choreographing', 'Churning', 'Clauding', 'Coalescing',
+      'Cogitating', 'Combobulating', 'Composing', 'Computing', 'Concocting', 'Considering',
+      'Contemplating', 'Cooking', 'Crafting', 'Creating', 'Crunching', 'Crystallizing',
+      'Cultivating', 'Deciphering', 'Deliberating', 'Determining', 'Dilly-dallying', 'Discombobulating',
+      'Doing', 'Doodling', 'Drizzling', 'Ebbing', 'Effecting', 'Elucidating',
+      'Embellishing', 'Enchanting', 'Envisioning', 'Evaporating', 'Fermenting', 'Fiddle-faddling',
+      'Finagling', 'Flamb\u00E9ing', 'Flibbertigibbeting', 'Flowing', 'Flummoxing', 'Fluttering',
+      'Forging', 'Forming', 'Frolicking', 'Frosting', 'Gallivanting', 'Galloping',
+      'Garnishing', 'Generating', 'Gesticulating', 'Germinating', 'Gitifying', 'Grooving',
+      'Gusting', 'Harmonizing', 'Hashing', 'Hatching', 'Herding', 'Honking',
+      'Hullaballooing', 'Hyperspacing', 'Ideating', 'Imagining', 'Improvising', 'Incubating',
+      'Inferring', 'Infusing', 'Ionizing', 'Jitterbugging', 'Julienning', 'Kneading',
+      'Leavening', 'Levitating', 'Lollygagging', 'Manifesting', 'Marinating', 'Meandering',
+      'Metamorphosing', 'Misting', 'Moonwalking', 'Moseying', 'Mulling', 'Mustering',
+      'Musing', 'Nebulizing', 'Nesting', 'Newspapering', 'Noodling', 'Nucleating',
+      'Orbiting', 'Orchestrating', 'Osmosing', 'Perambulating', 'Percolating', 'Perusing',
+      'Philosophising', 'Photosynthesizing', 'Pollinating', 'Pondering', 'Pontificating', 'Pouncing',
+      'Precipitating', 'Prestidigitating', 'Processing', 'Proofing', 'Propagating', 'Puttering',
+      'Puzzling', 'Quantumizing', 'Razzle-dazzling', 'Razzmatazzing', 'Recombobulating', 'Reticulating',
+      'Roosting', 'Ruminating', 'Saut\u00E9ing', 'Scampering', 'Schlepping', 'Scurrying',
+      'Seasoning', 'Shenaniganing', 'Shimmying', 'Simmering', 'Skedaddling', 'Sketching',
+      'Slithering', 'Smooshing', 'Sock-hopping', 'Spelunking', 'Spinning', 'Sprouting',
+      'Stewing', 'Sublimating', 'Swirling', 'Swooping', 'Symbioting', 'Synthesizing',
+      'Tempering', 'Thinking', 'Thundering', 'Tinkering', 'Tomfoolering', 'Topsy-turvying',
+      'Transfiguring', 'Transmuting', 'Twisting', 'Undulating', 'Unfurling', 'Unravelling',
+      'Vibing', 'Waddling', 'Wandering', 'Warping', 'Whatchamacalliting', 'Whirlpooling',
+      'Whirring', 'Whisking', 'Wibbling', 'Working', 'Wrangling', 'Zesting',
+      'Zigzagging',
     ];
+
+    /* A second, much smaller array: the past tenses Claude Code prints when a
+       turn ends — `✻ Crunched for 4s`. Eight words, no more. */
+    const PAST_VERBS = ['Baked', 'Brewed', 'Churned', 'Cogitated', 'Cooked', 'Crunched', 'Saut\u00E9ed', 'Worked'];
     const IDLE_PHRASES = [
       'waiting to cogitate',
       'dozing in latent space',
@@ -99,6 +134,10 @@ window.__ModuleLoader__.load({
     /* Pixel mode quantises both to a low frame rate; its idle step is slower
        still, because a stepped morph reads as judder when it runs fast. */
     const GLYPH_MS_PIXEL = { work: 320, idle: 900 };
+    /* How long the turn-end word stays up before the strip drops back to idle. */
+    const DONE_MS = 6000;
+    /* Shorter than this is not a turn worth naming — a misfire or a keystroke. */
+    const DONE_MIN_MS = 800;
 
     const THEMES = [
       { id: 'deepseek', dot: '#4d6bfe', label: 'deepseek' },
@@ -216,6 +255,14 @@ window.__ModuleLoader__.load({
       return Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm';
     }
 
+    /** Turn length the way Claude Code prints it: "4s", "1m 4s" — seconds never
+     *  dropped once a minute is in play. */
+    function turnDuration(ms) {
+      const total = Math.max(0, Math.round(num(ms) / 1000));
+      if (total < 60) return total + 's';
+      return Math.floor(total / 60) + 'm ' + (total % 60) + 's';
+    }
+
     /**
      * Semantic colors never theme: a warning that recolors itself to match the
      * palette stops being a warning.
@@ -288,10 +335,13 @@ window.__ModuleLoader__.load({
       const [pinned, setPinned] = React.useState(false);
       const [phrase, setPhrase] = React.useState(0);
       const [glyph, setGlyph] = React.useState(0);
+      const [done, setDone] = React.useState(null);
 
       const barRef = React.useRef(null);
       const splashRef = React.useRef(null);
       const closeTimer = React.useRef(0);
+      const workStart = React.useRef(0);
+      const doneTimer = React.useRef(0);
 
       React.useEffect(() => {
         const phraseTimer = window.setInterval(
@@ -317,7 +367,33 @@ window.__ModuleLoader__.load({
         };
       }, [working, pixel]);
 
-      React.useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+      /* The turn-end word, borrowed from Claude Code's past-tense line: mark when
+         work starts, spend the mark when it stops, hold the result for a beat,
+         then fall back to idle. Busy edges are the only signal used — the same
+         session-status stream that drives the breath. */
+      React.useEffect(() => {
+        if (working) {
+          workStart.current = Date.now();
+          window.clearTimeout(doneTimer.current);
+          setDone(null);
+          return;
+        }
+        if (workStart.current === 0) return;
+        const spent = Date.now() - workStart.current;
+        workStart.current = 0;
+        if (spent < DONE_MIN_MS) return;
+        setDone({ word: PAST_VERBS[Math.floor(Math.random() * PAST_VERBS.length)], ms: spent });
+        window.clearTimeout(doneTimer.current);
+        doneTimer.current = window.setTimeout(() => setDone(null), DONE_MS);
+      }, [working]);
+
+      React.useEffect(
+        () => () => {
+          window.clearTimeout(closeTimer.current);
+          window.clearTimeout(doneTimer.current);
+        },
+        [],
+      );
 
       const chooseTheme = (id) => {
         setTheme(id);
@@ -394,8 +470,14 @@ window.__ModuleLoader__.load({
 
       const surfaceTokens = breakdown ? num(breakdown.systemTokens) + num(breakdown.toolsTokens) + num(breakdown.messageTokens) : null;
 
-      const phrases = working ? WORK_PHRASES : IDLE_PHRASES;
-      const phraseText = phrases[phrase % phrases.length];
+      /* Working rotates Claude Code's spinner verbs; idle uses the strip's own
+         sleeping phrases. A finished turn overrides both for a few seconds. */
+      const statusText =
+        done !== null
+          ? done.word + ' for ' + turnDuration(done.ms)
+          : working
+            ? WORK_VERBS[phrase % WORK_VERBS.length]
+            : IDLE_PHRASES[phrase % IDLE_PHRASES.length];
 
       /* Load-bearing: 3.2 / (1 + tps/55) clamped; idle barely drifts.
          Pixel mode keeps the lane above a floor so 4 stepped beads still read
@@ -531,12 +613,17 @@ window.__ModuleLoader__.load({
             { className: 'sb-group' },
             h(
               'span',
-              { className: working ? 'sb-status sb-glow' : 'sb-status idle' },
-              working ? '\u2726 ' : '\u25CC ',
-              phraseText,
-              working
-                ? h('span', { className: 'sb-dots', 'aria-hidden': true }, h('i', null, '.'), h('i', null, '.'), h('i', null, '.'))
-                : h('span', { className: 'sb-zzz', 'aria-hidden': true }, h('i', null, 'Z'), h('i', null, 'z'), h('i', null, 'z'), h('i', null, 'z')),
+              {
+                className:
+                  done !== null ? 'sb-status sb-done' : working ? 'sb-status sb-glow' : 'sb-status idle',
+              },
+              done !== null || working ? '\u2726 ' : '\u25CC ',
+              statusText,
+              done !== null
+                ? null
+                : working
+                  ? h('span', { className: 'sb-dots', 'aria-hidden': true }, h('i', null, '.'), h('i', null, '.'), h('i', null, '.'))
+                  : h('span', { className: 'sb-zzz', 'aria-hidden': true }, h('i', null, 'Z'), h('i', null, 'z'), h('i', null, 'z'), h('i', null, 'z')),
             ),
             h('span', { className: 'sb-sep' }, '\u00B7'),
             h(

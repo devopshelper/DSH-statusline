@@ -3,10 +3,32 @@
 A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits in a dock cell of its own under the composer, beside the harness's own status pills — nothing is hidden or replaced.
 
 ```
-✻ DeepSeek Harness · ◌ in the ether Zzzz · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
+✻ DeepSeek Harness · ✦ Flibbertigibbeting...  · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
+✻ DeepSeek Harness · ✦ Crunched for 4s        · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
+✻ DeepSeek Harness · ◌ in the ether Zzzz      · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
 ```
 
 The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter.
+
+## Status text
+
+Three states share one 27ch slot:
+
+| State | Shows | Source |
+|---|---|---|
+| working | `✦ <Verb>...` | Claude Code's 187 spinner verbs, verbatim |
+| turn just ended | `✦ <PastVerb> for 12s` | Claude Code's 8 past-tense words |
+| idle | `◌ <phrase> Zzzz` | this strip's own sleeping lines |
+
+The 187 words come from `WORK_VERBS` in `client.src.js` — `Accomplishing` through `Zigzagging`, extracted from Claude Code's own array. The terminal picks one per session and holds it; the strip rotates, which is the only deliberate departure. The trailing dots are a separate animated element, so the words carry no ellipsis of their own.
+
+The turn-end word is the one thing borrowed wholesale. Claude Code prints `✻ Crunched for 4s` when a turn completes, drawing from a second, much smaller array:
+
+```js
+["Baked", "Brewed", "Churned", "Cogitated", "Cooked", "Crunched", "Sautéed", "Worked"]
+```
+
+Here the strip marks the moment `useSessionStatus` goes busy, spends the mark when it goes idle, and holds `Crunched for 4s` for six seconds before dropping back to a sleeping phrase. Turns under 800 ms are skipped — a misfire is not worth naming. Seconds are never dropped once a minute is in play (`1m 4s`, not `1m`), because that is how the original prints it.
 
 ## How it attaches
 
@@ -86,6 +108,7 @@ Cadence lives in three constants at the top of `client.src.js`, not scattered th
 | `PHRASE_MS` — status text rotates | 3750 ms | 11000 ms |
 | `GLYPH_MS` — `✻` morphs | 130 ms | 700 ms |
 | `GLYPH_MS_PIXEL` — same, pixel mode | 320 ms | 900 ms |
+| `DONE_MS` — turn-end word holds | 6000 ms | 6000 ms |
 
 Idle is deliberately slower than one breath (5 s): the phrase lands about every second breath, so the strip reads as dozing rather than flipping.
 
