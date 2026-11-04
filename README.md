@@ -79,6 +79,16 @@ Persisted choices: `localStorage["dsh.statusbar.theme"]` and `localStorage["dsh.
 - the splash restarts via class flip + reflow on a persistent node — never a remount.
 - no `container-type` on the shell: inline-size containment reports zero intrinsic width and collapses the strip.
 
+Cadence lives in three constants at the top of `client.src.js`, not scattered through the component:
+
+| | working | idle |
+|---|---|---|
+| `PHRASE_MS` — status text rotates | 3750 ms | 11000 ms |
+| `GLYPH_MS` — `✻` morphs | 130 ms | 700 ms |
+| `GLYPH_MS_PIXEL` — same, pixel mode | 320 ms | 900 ms |
+
+Idle is deliberately slower than one breath (5 s): the phrase lands about every second breath, so the strip reads as dozing rather than flipping.
+
 ## Low-frame (pixel) mode
 
 The bead lane is the most expensive thing on screen: eight nodes, each carrying two `box-shadow` layers, animating continuously. On RDP or any software-rendered session that is what stutters. Pixel mode keeps the strip alive but makes it move like an 8-bit sprite.
@@ -90,7 +100,7 @@ Toggle it in the card (`pixel`). It persists in `localStorage["dsh.statusbar.pix
 | bead nodes | 8, each with two glow shadows | 4, solid squares, no shadow |
 | bead motion | continuous `translateX` | `steps(8)` - eight sprite positions per loop |
 | strip breathing | `box-shadow` repaint across the whole bar | off, static inset glow |
-| glyph morph | 130 ms while working | 320 ms, `steps(4)` |
+| glyph morph | 130 ms working / 700 ms idle | 320 ms / 900 ms idle, `steps(4)` |
 | phrase halo / splash / hover filter | on | off |
 | flow duration floor | 0.5 s | 0.9 s, so four stepped beads still read as flow |
 

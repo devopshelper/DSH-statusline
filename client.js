@@ -86,8 +86,19 @@ window.__ModuleLoader__.load({
       'waiting to cogitate',
       'dozing in latent space',
       'in the ether',
+      'half awake',
+      'dreaming of gradients',
       'standing by',
     ];
+
+    /* Idle is a sleeping animal, not a screensaver: the phrase lands about
+       every second breath and the glyph steps ~2x slower. Working stays brisk
+       — there the motion is the only visible signal that tokens are moving. */
+    const PHRASE_MS = { work: 3750, idle: 11000 };
+    const GLYPH_MS = { work: 130, idle: 700 };
+    /* Pixel mode quantises both to a low frame rate; its idle step is slower
+       still, because a stepped morph reads as judder when it runs fast. */
+    const GLYPH_MS_PIXEL = { work: 320, idle: 900 };
 
     const THEMES = [
       { id: 'deepseek', dot: '#4d6bfe', label: 'deepseek' },
@@ -283,12 +294,22 @@ window.__ModuleLoader__.load({
       const closeTimer = React.useRef(0);
 
       React.useEffect(() => {
-        const phraseTimer = window.setInterval(() => setPhrase((n) => n + 1), working ? 3750 : 5000);
+        const phraseTimer = window.setInterval(
+          () => setPhrase((n) => n + 1),
+          working ? PHRASE_MS.work : PHRASE_MS.idle,
+        );
         /* Pixel mode morphs the glyph like a sprite: fewer frames, and each
            tick costs a React render of the whole strip. */
+        const glyphMs = pixel
+          ? working
+            ? GLYPH_MS_PIXEL.work
+            : GLYPH_MS_PIXEL.idle
+          : working
+            ? GLYPH_MS.work
+            : GLYPH_MS.idle;
         const glyphTimer = window.setInterval(
           () => setGlyph((n) => (n + 1) % GLYPHS.length),
-          pixel ? 320 : working ? 130 : 300,
+          glyphMs,
         );
         return () => {
           window.clearInterval(phraseTimer);
