@@ -64,6 +64,11 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-tools .sb-fx{margin-left:0}' +
       '.dsh-sb-shell [data-sb] .sb-tools .sb-fx:first-child{margin-left:auto}' +
       '.dsh-sb-shell [data-sb] .sb-tools .sb-close{font-size:11px;line-height:1;letter-spacing:0;padding:2px 6px}' +
+      /* A latched tool button. Only the demo ever latches, so the accent here
+         means exactly "this strip is being exercised, not observed". */
+      '.dsh-sb-shell [data-sb] .sb-tools .sb-fx.on{color:var(--sb-accent);border-color:rgba(var(--sb-glow),.8);box-shadow:0 0 9px rgba(var(--sb-glow),.28)}' +
+      '.dsh-sb-shell [data-sb] .sb-tools .sb-fx.on:hover{color:#fff;border-color:var(--sb-accent)}' +
+      '.dsh-sb-shell [data-sb][data-sb-lite] .sb-tools .sb-fx.on{box-shadow:none}' +
       '.dsh-sb-shell [data-sb] .sb-card .dsh-sb-card-head{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:rgba(150,170,190,.85);margin-bottom:5px}' +
       /* ---- pixel mode: low-frame, low-paint ------------------------------
          For RDP and other software-rendered sessions. The strip keeps moving,
@@ -365,7 +370,7 @@ window.__ModuleLoader__.load({
 
       const statusHook = props.useSessionStatus;
       const identity = React.useCallback((value) => value, []);
-      const working = readRunning(typeof statusHook === 'function' ? statusHook(identity) : null, props.sessionId) === true;
+      const realWorking = readRunning(typeof statusHook === 'function' ? statusHook(identity) : null, props.sessionId) === true;
 
       const stats = useFaceValue(props.useProjection, 'sessionStats');
       const usage = useFaceValue(props.useProjection, 'tokenUsage');
@@ -384,6 +389,14 @@ window.__ModuleLoader__.load({
       const [phrase, setPhrase] = React.useState(0);
       const [glyph, setGlyph] = React.useState(0);
       const [done, setDone] = React.useState(null);
+      /* Rehearsal. A live turn is the only thing that can normally make the strip
+         breathe, so a reader who just wants to look at the motion has to send a
+         prompt and pay for it. This flag injects the *working* state instead:
+         same verbs, same glyph, same lane, same breathing, no model involved.
+         Deliberately not persisted - a reload should never come back pretending
+         to work. */
+      const [demo, setDemo] = React.useState(false);
+      const working = realWorking || demo;
 
       const barRef = React.useRef(null);
       const splashRef = React.useRef(null);
@@ -435,6 +448,15 @@ window.__ModuleLoader__.load({
         doneTimer.current = window.setTimeout(() => setDone(null), DONE_MS);
       }, [working]);
 
+      /* A real turn outranks the rehearsal: the moment one starts, the demo drops
+         and the clock restarts, so the word at the end describes the turn the
+         model actually ran rather than the practice run in front of it. */
+      React.useEffect(() => {
+        if (!demo || !realWorking) return;
+        setDemo(false);
+        workStart.current = Date.now();
+      }, [demo, realWorking]);
+
       React.useEffect(
         () => () => {
           window.clearTimeout(closeTimer.current);
@@ -485,23 +507,41 @@ window.__ModuleLoader__.load({
         setCardOpen(false);
       };
 
-      /** Wave: keep the node, flip the class, force a reflow, flip it back on. */
-      const fireSplash = (event) => {
+      /** Wave at a percentage of the strip. Detached from the pointer so the
+          demo can fire it from a button that lives inside the card. */
+      const pulseAt = (percent) => {
         if (lite) return;
         const bar = barRef.current;
         const splash = splashRef.current;
         if (bar === null || splash === null) return;
-        const target = event.target;
-        if (target && typeof target.closest === 'function' && target.closest('.sb-card')) return;
         const rect = bar.getBoundingClientRect();
         if (!rect.width) return;
-        const percent = Math.max(2, Math.min(98, ((event.clientX - rect.left) / rect.width) * 100));
-        splash.style.setProperty('--sb-sx', percent + '%');
-        splash.style.setProperty('--sb-x', (percent / 100) * rect.width + 'px');
+        const at = Math.max(2, Math.min(98, percent));
+        splash.style.setProperty('--sb-sx', at + '%');
+        splash.style.setProperty('--sb-x', (at / 100) * rect.width + 'px');
         splash.style.setProperty('--sb-w', rect.width + 'px');
         splash.classList.remove('go');
         void splash.offsetWidth;
         splash.classList.add('go');
+      };
+
+      /** Wave: keep the node, flip the class, force a reflow, flip it back on. */
+      const fireSplash = (event) => {
+        if (lite) return;
+        const bar = barRef.current;
+        if (bar === null) return;
+        const target = event.target;
+        if (target && typeof target.closest === 'function' && target.closest('.sb-card')) return;
+        const rect = bar.getBoundingClientRect();
+        if (!rect.width) return;
+        pulseAt(((event.clientX - rect.left) / rect.width) * 100);
+      };
+
+      /* Both edges of the demo wave the strip: turning it on shows the entry
+         effect, turning it off shows the wave plus the turn-end word. */
+      const toggleDemo = () => {
+        setDemo((previous) => !previous);
+        window.setTimeout(() => pulseAt(58), 0);
       };
 
       /* ---- real figures, from the same projections the shipped cells read ---- */
@@ -542,10 +582,19 @@ window.__ModuleLoader__.load({
 
       /* Load-bearing: 3.2 / (1 + tps/55) clamped; idle barely drifts.
          Pixel mode keeps the lane above a floor so 4 stepped beads still read
-         as flow instead of a blur. */
+         as flow instead of a blur. The demo has no real rate, so it borrows the
+         idle-throughput fallback and the lane runs at a believable pace. */
       const tps = working ? (rate > 0 ? rate : 55) : 0;
       const smoothFlow = working ? Math.max(0.5, Math.min(3.2, 3.2 / (1 + tps / 55))) : 10;
       const flowSeconds = pixel ? Math.max(0.9, smoothFlow) : smoothFlow;
+
+      /* One label for every place the state is spoken: never claim a turn is
+         running when it is only a rehearsal. */
+      const stateLabel = demo ? t('state.demo') : working ? t('state.working') : t('state.idle');
+      const flowTitle = working
+        ? t(flowMode === FLOW_ECG ? 'flow.ecg.busy' : 'flow.busy') + (rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '')
+        : t(flowMode === FLOW_ECG ? 'flow.ecg.idle' : 'flow.idle');
+
 
       const cacheBlocks = cachePercent === null ? 0 : Math.max(0, Math.min(5, Math.round(cachePercent / 20)));
       const blockMeter = h(
@@ -579,7 +628,7 @@ window.__ModuleLoader__.load({
         'data-sb-pixel': pixel ? '' : undefined,
         ref: barRef,
         role: 'group',
-        'aria-label': t('bar.label') + ': ' + (working ? t('state.working') : t('state.idle')),
+        'aria-label': t('bar.label') + ': ' + stateLabel,
         onMouseEnter: () => setHover(true),
         onMouseLeave: () => {
           setHover(false);
@@ -622,7 +671,7 @@ window.__ModuleLoader__.load({
               onMouseLeave: closeCardSoon,
             },
             h('div', { className: 'dsh-sb-card-head' }, t('card.title')),
-            row(t('card.state'), working ? t('state.working') : t('state.idle')),
+            row(t('card.state'), stateLabel),
             row(t('card.turns'), String(turns) + ' / ' + String(steps)),
             row(t('card.rate'), rate > 0 ? Math.round(rate) + ' tok/s' : '\u2014'),
             row(t('card.tokens'), billed > 0 ? compact(billed) : '\u2014'),
@@ -667,6 +716,20 @@ window.__ModuleLoader__.load({
                   onClick: toggleFlowMode,
                 },
                 flowMode === FLOW_ECG ? t('flowmode.ecg') : t('flowmode.beads'),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'sb-fx sb-demo' + (demo ? ' on' : ''),
+                  title: demo ? t('demo.title.on') : t('demo.title.off'),
+                  'aria-pressed': demo ? 'true' : 'false',
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    toggleDemo();
+                  },
+                },
+                demo ? t('demo.on') : t('demo.off'),
               ),
               h(
                 'button',
@@ -717,9 +780,7 @@ window.__ModuleLoader__.load({
                   {
                     className: 'sb-ecg dsh-sb-flow' + (working ? '' : ' idle'),
                     style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                    title: working
-                      ? t('flow.ecg.busy') + (rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '')
-                      : t('flow.ecg.idle'),
+                    title: flowTitle,
                     'aria-hidden': true,
                   },
                   h(
@@ -734,7 +795,7 @@ window.__ModuleLoader__.load({
                   {
                     className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
                     style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                    title: working ? t('flow.busy') + (rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '') : t('flow.idle'),
+                    title: flowTitle,
                     'aria-hidden': true,
                   },
                   h('i', null),
@@ -791,6 +852,11 @@ window.__ModuleLoader__.load({
       'flowmode.ecg': 'bpm',
       'flowmode.title.beads': 'flowing token beads - click for a flat heartbeat trace',
       'flowmode.title.ecg': 'heartbeat trace at the live rate - click for flowing beads',
+      'demo.off': 'demo',
+      'demo.on': 'demo on',
+      'demo.title.off': 'play the working animations without sending a prompt',
+      'demo.title.on': 'stop the rehearsal - the strip settles and reports the time it ran',
+      'state.demo': 'working (demo)',
       'card.close': 'close',
     };
     const zh = {
@@ -824,6 +890,11 @@ window.__ModuleLoader__.load({
       'flowmode.ecg': '心电',
       'flowmode.title.beads': '流动的 token 粒子 — 点击切换为平线心电',
       'flowmode.title.ecg': '实时速率的心电曲线 — 点击切回流动粒子',
+      'demo.off': '演示',
+      'demo.on': '演示 开',
+      'demo.title.off': '不发送消息，直接播放工作中的动画',
+      'demo.title.on': '结束演示 — 状态条会停下并报出这次跑了多久',
+      'state.demo': '工作中（演示）',
       'card.close': '关闭',
     };
 

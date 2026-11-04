@@ -8,7 +8,7 @@ A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deeps
 ✻ DeepSeek Harness · ◌ in the ether Zzzz      · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
 ```
 
-The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter.
+The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter. A `demo` toggle in the card plays the whole working state on demand, so you can look at the motion without spending a prompt.
 
 ## Status text
 
@@ -93,9 +93,23 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 | `pixel` | low-frame motion for RDP / software rendering |
 | `fx off` | kills whole-surface effects but keeps state identical |
 | `beads` / `bpm` | switches the flow lane between travelling beads and a flat heartbeat trace |
+| `demo` | rehearses the working state without sending a prompt |
 | `×` | closes the card, including a pinned one |
 
 Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`.
+
+## Demo mode
+
+The strip only moves like it is working when a turn is actually running, which makes the motion awkward to look at: every inspection costs a prompt. `demo` in the card injects the working state directly — same 187 verbs, same glyph cadence, same lane, same breath, same token-driven flow formula — with no model call behind it.
+
+- It latches: click once, and the strip works until you click again. The button takes the accent colour while it is on, and the card's `state` row reads `working (demo)` rather than `working`.
+- Turning it off runs the real turn-end path: the clock that started with the demo is spent, so you get the wave plus a `Crunched for 12s` line and then a drop back to idle. That is the one state that is otherwise impossible to see on demand.
+- Each edge fires the click wave too, so the splash is visible without clicking the strip.
+- A real turn always outranks it: the moment the session goes busy, the demo clears itself and restarts the clock, so the word at the end describes the actual turn.
+- It is **not** persisted. A reload comes back honest, at rest. `fx off` still suppresses the wave, and in pixel mode everything steps down as usual.
+
+The lane uses the idle-throughput fallback (`55 tok/s`, i.e. a 1.6 s loop) because there is no real decode rate during a rehearsal.
+
 
 ## The flow lane
 
