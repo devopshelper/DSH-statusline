@@ -141,6 +141,28 @@ plugin_manager install_bundle  target: <absolute path to this directory>
 
 Either route links the directory rather than copying it, so edits to `client.js` need a remove + add cycle (a fresh module generation) plus a page refresh.
 
+## Updating
+
+The install is a **link**, not a copy: the profile's `package.json` points at your checkout, which means the checkout *is* the installed code. There is no registry to pull from.
+
+```powershell
+cd <your checkout>
+git pull                     # client.js is committed, so this alone is a working update
+.\uninstall.ps1              # unregister + unlink
+.\install.ps1                # relink + register
+```
+
+Then reload the Harness Web UI with **Ctrl+Shift+R**. If the strip looks unchanged, restart DeepSeek Harness — the client bundle is fetched per module generation, and a running app can keep serving the previous one.
+
+The uninstall/install round-trip is what forces that new generation; `git pull` on its own changes files on disk, which the running page may never re-read.
+
+- **No build step needed** for a normal update: `client.js` is committed. Run `node scripts/build.mjs` only if you edited `client.src.js` or `styles/statusbar.css`.
+- **From an agent session** the same cycle is `plugin_manager remove_bundle`, then `install_bundle` with the same directory.
+- **Check what you're running:** `git -C <checkout> log -1 --oneline`.
+- **Don't move or delete the checkout afterwards.** The profile points at it, so relocating it breaks the bundle on the next DSH start — re-run `install.ps1` from the new location if you do.
+
+Your settings survive an update: theme, pixel and FX choices live in the browser's `localStorage`, not in the repo.
+
 ## Structure
 
 ```
