@@ -44,6 +44,26 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .dsh-sb-nodata{opacity:.45}' +
       /* Turn-end word: accent, upright, no dots or Zzzz - it is a full stop. */
       '.dsh-sb-shell [data-sb] .sb-status.sb-done{font-style:normal;font-weight:600;color:var(--sb-accent);text-shadow:0 0 9px rgba(var(--sb-glow),.45)}' +
+      /* ---- optional flow lane: flat ECG trace -------------------------------
+         Same lane box as the bead line, so switching styles moves nothing. One
+         bright dash sweeps the polyline; --sb-flow-dur still encodes tok/s, so
+         the sweep is the pulse rate. At rest the trace disappears and only the
+         baseline is left: a flatline, asleep. */
+      '.dsh-sb-shell [data-sb] .sb-ecg{position:relative;display:inline-block;width:var(--sb-flow-w);height:var(--sb-flow-h);overflow:hidden;vertical-align:middle}' +
+      '.dsh-sb-shell [data-sb] .sb-ecg svg{display:block;width:100%;height:100%}' +
+      '.dsh-sb-shell [data-sb] .sb-ecg polyline{fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}' +
+      '.dsh-sb-shell [data-sb] .sb-ecg-base{stroke:rgba(var(--sb-glow),.3)}' +
+      '.dsh-sb-shell [data-sb] .sb-ecg-trace{stroke:var(--sb-accent);stroke-dasharray:9 100;stroke-dashoffset:0;animation:sb-ecg var(--sb-flow-dur) linear infinite;filter:drop-shadow(0 0 3px rgba(var(--sb-glow),.85))}' +
+      '.dsh-sb-shell [data-sb] .sb-ecg.idle .sb-ecg-trace{display:none}' +
+      '.dsh-sb-shell [data-sb] .sb-ecg.idle .sb-ecg-base{stroke:rgba(var(--sb-glow),.16)}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-ecg-trace{filter:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-lite] .sb-ecg-trace{filter:none}' +
+      '@keyframes sb-ecg{from{stroke-dashoffset:0}to{stroke-dashoffset:-109}}' +
+      /* Tool row: keep the group hard right instead of letting every .sb-fx
+         claim an auto margin, and make the X read as a close. */
+      '.dsh-sb-shell [data-sb] .sb-tools .sb-fx{margin-left:0}' +
+      '.dsh-sb-shell [data-sb] .sb-tools .sb-fx:first-child{margin-left:auto}' +
+      '.dsh-sb-shell [data-sb] .sb-tools .sb-close{font-size:11px;line-height:1;letter-spacing:0;padding:2px 6px}' +
       '.dsh-sb-shell [data-sb] .sb-card .dsh-sb-card-head{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:rgba(150,170,190,.85);margin-bottom:5px}' +
       /* ---- pixel mode: low-frame, low-paint ------------------------------
          For RDP and other software-rendered sessions. The strip keeps moving,
@@ -117,6 +137,24 @@ window.__ModuleLoader__.load({
     /* A second, much smaller array: the past tenses Claude Code prints when a
        turn ends — `✻ Crunched for 4s`. Eight words, no more. */
     const PAST_VERBS = ['Baked', 'Brewed', 'Churned', 'Cogitated', 'Cooked', 'Crunched', 'Saut\u00E9ed', 'Worked'];
+
+    /* One ECG complex, 32 units wide on a 17-unit-tall baseline, repeated four
+       times to span the 128-unit lane: flat, small P bump, deep Q, tall R, deep
+       S, T bump, flat. Filled in once at load rather than hand-written. */
+    const ECG_PATH = (function () {
+      const unit = [
+        [0, 8.5], [7, 8.5], [8.5, 7.2], [10, 8.5],
+        [13, 8.5], [14, 10.2], [15.5, 2], [17, 15],
+        [18.5, 8.5], [20.5, 6.6], [22.5, 8.5], [32, 8.5],
+      ];
+      const points = [];
+      for (let repeat = 0; repeat < 4; repeat += 1) {
+        for (let index = 0; index < unit.length; index += 1) {
+          points.push((unit[index][0] + repeat * 32) + ',' + unit[index][1]);
+        }
+      }
+      return points.join(' ');
+    })();
     const IDLE_PHRASES = [
       'waiting to cogitate',
       'dozing in latent space',
@@ -158,6 +196,13 @@ window.__ModuleLoader__.load({
     const STORE_THEME = 'dsh.statusbar.theme';
     const STORE_FX = 'dsh.statusbar.fx';
     const STORE_PIXEL = 'dsh.statusbar.pixel';
+    const STORE_FLOW = 'dsh.statusbar.flow';
+
+    /* Flow lanes. `beads` is the original travelling-particle line; `ecg` is a
+       flat heartbeat trace with one bright pulse sweeping it. Both read the same
+       --sb-flow-dur, so both answer to the live token rate. */
+    const FLOW_BEADS = 'beads';
+    const FLOW_ECG = 'ecg';
 
     /** Smooth mode draws 8 beads; pixel mode halves the nodes it has to paint. */
     const BEADS_SMOOTH = 8;
@@ -330,6 +375,9 @@ window.__ModuleLoader__.load({
       const [theme, setTheme] = React.useState(() => readStored(STORE_THEME, 'deepseek', THEME_IDS));
       const [lite, setLite] = React.useState(() => readStored(STORE_FX, 'off') === 'on');
       const [pixel, setPixel] = React.useState(() => readStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off') === 'on');
+      const [flowMode, setFlowMode] = React.useState(() =>
+        readStored(STORE_FLOW, FLOW_BEADS) === FLOW_ECG ? FLOW_ECG : FLOW_BEADS,
+      );
       const [hover, setHover] = React.useState(false);
       const [cardOpen, setCardOpen] = React.useState(false);
       const [pinned, setPinned] = React.useState(false);
@@ -413,6 +461,13 @@ window.__ModuleLoader__.load({
           return next;
         });
       };
+      const toggleFlowMode = () => {
+        setFlowMode((previous) => {
+          const next = previous === FLOW_ECG ? FLOW_BEADS : FLOW_ECG;
+          writeStored(STORE_FLOW, next);
+          return next;
+        });
+      };
 
       const openCard = () => {
         window.clearTimeout(closeTimer.current);
@@ -422,6 +477,12 @@ window.__ModuleLoader__.load({
         if (pinned) return;
         window.clearTimeout(closeTimer.current);
         closeTimer.current = window.setTimeout(() => setCardOpen(false), 140);
+      };
+      /* The X: a pinned card ignores mouse-leave, so closing has to unpin too. */
+      const closeCardNow = () => {
+        window.clearTimeout(closeTimer.current);
+        setPinned(false);
+        setCardOpen(false);
       };
 
       /** Wave: keep the node, flip the class, force a reflow, flip it back on. */
@@ -597,6 +658,30 @@ window.__ModuleLoader__.load({
                 pixel ? t('pixel.on') : t('pixel.off'),
               ),
               h('button', { type: 'button', className: 'sb-fx', onClick: toggleFx }, lite ? t('fx.on') : t('fx.off')),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'sb-fx sb-flowmode',
+                  title: flowMode === FLOW_ECG ? t('flowmode.title.ecg') : t('flowmode.title.beads'),
+                  onClick: toggleFlowMode,
+                },
+                flowMode === FLOW_ECG ? t('flowmode.ecg') : t('flowmode.beads'),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'sb-fx sb-close',
+                  title: t('card.close'),
+                  'aria-label': t('card.close'),
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    closeCardNow();
+                  },
+                },
+                '\u00D7',
+              ),
             ),
           )
         : null;
@@ -626,24 +711,42 @@ window.__ModuleLoader__.load({
                   : h('span', { className: 'sb-zzz', 'aria-hidden': true }, h('i', null, 'Z'), h('i', null, 'z'), h('i', null, 'z'), h('i', null, 'z')),
             ),
             h('span', { className: 'sb-sep' }, '\u00B7'),
-            h(
-              'span',
-              {
-                className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
-                style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                title: working ? t('flow.busy') + (rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '') : t('flow.idle'),
-                'aria-hidden': true,
-              },
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              pixel ? null : h('i', null),
-              pixel ? null : h('i', null),
-              pixel ? null : h('i', null),
-              pixel ? null : h('i', null),
-              h('span', { className: 'sb-flow-gear' }, '\u2699'),
-            ),
+            flowMode === FLOW_ECG
+              ? h(
+                  'span',
+                  {
+                    className: 'sb-ecg dsh-sb-flow' + (working ? '' : ' idle'),
+                    style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
+                    title: working
+                      ? t('flow.ecg.busy') + (rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '')
+                      : t('flow.ecg.idle'),
+                    'aria-hidden': true,
+                  },
+                  h(
+                    'svg',
+                    { viewBox: '0 0 128 17', preserveAspectRatio: 'none' },
+                    h('polyline', { className: 'sb-ecg-base', points: ECG_PATH }),
+                    h('polyline', { className: 'sb-ecg-trace', points: ECG_PATH, pathLength: 100 }),
+                  ),
+                )
+              : h(
+                  'span',
+                  {
+                    className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
+                    style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
+                    title: working ? t('flow.busy') + (rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '') : t('flow.idle'),
+                    'aria-hidden': true,
+                  },
+                  h('i', null),
+                  h('i', null),
+                  h('i', null),
+                  h('i', null),
+                  pixel ? null : h('i', null),
+                  pixel ? null : h('i', null),
+                  pixel ? null : h('i', null),
+                  pixel ? null : h('i', null),
+                  h('span', { className: 'sb-flow-gear' }, '\u2699'),
+                ),
           ),
           rightGroup,
           h('span', { className: 'sb-splash', ref: splashRef, 'aria-hidden': true }, h('i', null), h('b', null), h('u', null)),
@@ -663,6 +766,8 @@ window.__ModuleLoader__.load({
       'state.idle': 'idle',
       'flow.busy': 'particles flowing at the live token rate',
       'flow.idle': 'particles barely drifting',
+      'flow.ecg.busy': 'heartbeat trace sweeping at the live token rate',
+      'flow.ecg.idle': 'flatline - nothing decoding',
       'metric.cache': 'prompt tokens served from cache —',
       'metric.cache.pending': 'no cached prompt sample yet',
       'metric.split': 'uncached input · output',
@@ -682,6 +787,11 @@ window.__ModuleLoader__.load({
       'pixel.on': 'pixel on',
       'pixel.title.off': 'step the motion down to a low frame rate (for RDP / software rendering)',
       'pixel.title.on': 'low-frame motion is on - click for smooth motion',
+      'flowmode.beads': 'beads',
+      'flowmode.ecg': 'bpm',
+      'flowmode.title.beads': 'flowing token beads - click for a flat heartbeat trace',
+      'flowmode.title.ecg': 'heartbeat trace at the live rate - click for flowing beads',
+      'card.close': 'close',
     };
     const zh = {
       'bar.label': '状态栏',
@@ -689,6 +799,8 @@ window.__ModuleLoader__.load({
       'state.idle': '空闲',
       'flow.busy': '粒子按实时速率流动',
       'flow.idle': '粒子缓缓漂移',
+      'flow.ecg.busy': '心电曲线按实时速率扫过',
+      'flow.ecg.idle': '平线 — 当前没有解码',
       'metric.cache': '缓存命中的提示词比例 —',
       'metric.cache.pending': '尚无缓存样本',
       'metric.split': '未缓存输入 · 输出',
@@ -708,6 +820,11 @@ window.__ModuleLoader__.load({
       'pixel.on': '低帧 开',
       'pixel.title.off': '把动画降到低帧率（适合远程桌面 / 软件渲染）',
       'pixel.title.on': '低帧模式已开启 — 点击恢复平滑动画',
+      'flowmode.beads': '粒子',
+      'flowmode.ecg': '心电',
+      'flowmode.title.beads': '流动的 token 粒子 — 点击切换为平线心电',
+      'flowmode.title.ecg': '实时速率的心电曲线 — 点击切回流动粒子',
+      'card.close': '关闭',
     };
 
     /**

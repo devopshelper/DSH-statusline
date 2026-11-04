@@ -86,12 +86,31 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 
 | Action | Result |
 |---|---|
-| hover the `✻ DeepSeek Harness` chip | card with turns/steps, decode rate, billed tokens, cache, context occupancy, surface + 12 palette swatches + pixel toggle |
+| hover the `✻ DeepSeek Harness` chip | card with turns/steps, decode rate, billed tokens, cache, context occupancy, surface + 12 palette swatches + the toggles |
 | click the chip | pin / unpin the card |
 | click anywhere on the strip | converging wave crests, fired from the click point |
 | palette swatch | repaints every glow (four custom properties carry the whole theme) |
+| `pixel` | low-frame motion for RDP / software rendering |
+| `fx off` | kills whole-surface effects but keeps state identical |
+| `beads` / `bpm` | switches the flow lane between travelling beads and a flat heartbeat trace |
+| `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]` and `localStorage["dsh.statusbar.fx"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`.
+
+## The flow lane
+
+The lane beside the status text has two skins, switched in the card and remembered:
+
+| | `beads` (default) | `bpm` |
+|---|---|---|
+| shape | 8 round nodes, two offset rows | one `polyline` on a 128×17 baseline |
+| working motion | `translateX` with staggered delays | a 9%-of-path dash swept by `stroke-dashoffset` |
+| idle | nodes dim and barely drift | the trace is hidden — only the baseline is left, i.e. a flatline |
+| cost | 8 nodes × 2 `box-shadow` layers | one stroke, no shadows outside smooth mode |
+
+Both read `--sb-flow-dur`, which is the tok/s formula (`clamp(3.2 / (1 + tps / 55), 0.5, 3.2)`), so in `bpm` the sweep rate *is* the pulse rate and a fast turn visibly races. The path is generated once at module load by `ECG_PATH` — one 32-unit P-QRS-T complex repeated four times — rather than hand-written coordinates.
+
+`stroke-dasharray: 9 100` with `pathLength="100"` normalises the dash to 9% of the path regardless of its real length; the keyframe shifts `stroke-dashoffset` by `-109` (dash + gap) so the loop is seamless.
 
 ## Layout rules that are load-bearing
 
@@ -126,8 +145,9 @@ Toggle it in the card (`pixel`). It persists in `localStorage["dsh.statusbar.pix
 | glyph morph | 130 ms working / 700 ms idle | 320 ms / 900 ms idle, `steps(4)` |
 | phrase halo / splash / hover filter | on | off |
 | flow duration floor | 0.5 s | 0.9 s, so four stepped beads still read as flow |
+| `bpm` trace glow | `drop-shadow` on the sweep | filter removed |
 
-The two toggles compose: `pixel` reduces *how* it moves, `fx off` (lite) removes the whole-surface effects entirely.
+The toggles compose: `pixel` reduces *how* it moves, `fx off` (lite) removes the whole-surface effects entirely, and the lane skin is orthogonal to both.
 
 ## Build
 
