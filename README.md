@@ -1,21 +1,30 @@
 # DSH Statusline
 
-A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that **takes over** the two composer status cells (`activity` and `usage`) instead of adding a third row beside them.
+A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits **above** the harness's own status pills under the composer, in a dock cell of its own — nothing is hidden or replaced.
 
 ```
 ✻ DeepSeek Harness · ◌ in the ether Zzzz · ••••••••     ⚡99% ▰▰▰▰▰ · 25% ctx · 21.9M tok · ↑178.2k ↓129.9k · ⏱ 15m
+  5 turns 104 steps · 216 tok/s        11.4M tok · Cache hit 99%        ◯ 19%        ← the shipped line stays
 ```
 
-Same facts the shipped pills reported — turns, decode rate, billed tokens, cache-hit share, context occupancy, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle.
+The same facts the shipped pills report — decode rate, billed tokens, cache-hit share, context occupancy, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle.
 
-## How the takeover works
+## How it attaches
 
-`conversation.composer.dock` is a `list` slot. The rules live in [`packages/client/ui-slots/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-slots/src/index.ts):
+`conversation.composer.dock` is a `list` slot; every entry is a cell keyed by `id`, rendered in ascending `order`.
+
+```js
+ctx.slots.register({ name: 'conversation.composer.dock', id: 'statusline', order: -1, ... }, StatusLine)
+```
+
+`order: -1` puts the strip first, and `flex: 1 1 100%` on the shell asks for a full line, so in a wrapping dock row the shipped `activity` (order 0) and `usage` (order 1) pills fall to the line below. In a non-wrapping row the strip shrinks beside them instead of overflowing.
+
+### Taking the cells over instead
+
+The same slot supports *replacing* the shipped pills, which is what earlier builds of this plugin did. The rules live in [`packages/client/ui-slots/src/index.ts`](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-slots/src/index.ts):
 
 - registering a duplicate `id` **at the same priority throws**;
 - a different priority **shadows** that cell, and **the lowest priority renders**.
-
-The shipped cells sit at priority `0`, so this plugin registers both ids at `priority: -1`:
 
 ```js
 ctx.slots.inject('conversation.composer.dock', function* () {
@@ -24,11 +33,7 @@ ctx.slots.inject('conversation.composer.dock', function* () {
 })
 ```
 
-Consequences worth knowing:
-
-- the shipped entries stay registered underneath, so **uninstalling restores them automatically**;
-- if this component ever throws, the entry *abdicates* and the shipped pill comes back on its own;
-- `usage` is claimed and renders nothing, purely so the shipped perf pill cannot reappear beside the strip.
+That gives a single strip with no shipped line, and because the shipped entries stay registered underneath, uninstalling — or a crash in the entry, which *abdicates* it — restores them automatically. Use it if you want one line and no duplication.
 
 ## Data
 
@@ -127,5 +132,6 @@ icon.svg             original artwork
 ## Notes and limits
 
 - The context ring to the right of the strip is **composer chrome, not a slot** (`conversation.input.activity` has no occupants and no other ui-chat registration paints a percentage). It is left untouched rather than styled through another package's internal class names.
+- The shipped line stays visible below the strip, so `ctx`, `tok` and cache-hit appear twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
 - `🪟` and `📦` rendered as tofu in the composer font stack, so `ctx` and `tok` are plain text.
 - Visual verification is per-screenshot; there is no browser automation in this setup.

@@ -15,8 +15,12 @@ window.__ModuleLoader__.load({
     const SHELL_CSS =
       /* No `container-type` here: inline-size containment reports zero intrinsic
          width, which collapsed the strip into a narrow centred box and made
-         every container query fire at once. The strip takes the row's width. */
-      '.dsh-sb-shell{display:block;width:100%;flex:1 1 auto;min-width:0;margin:1px 0}' +
+         every container query fire at once. The strip takes the row's width.
+
+         `flex: 1 1 100%` asks for a full line: in a wrapping dock row the
+         shipped pills fall to the line below, and in a non-wrapping row the
+         strip simply shrinks beside them instead of overflowing. */
+      '.dsh-sb-shell{display:block;width:100%;flex:1 1 100%;min-width:0;margin:1px 0}' +
       '.dsh-sb-shell [data-sb]{display:flex;align-items:center;flex-wrap:nowrap;width:100%;box-sizing:border-box;border:1px solid rgba(var(--sb-glow),.16);border-radius:10px}' +
       '.dsh-sb-shell [data-sb] .sb-group{min-width:0}' +
       '.dsh-sb-shell [data-sb] .sb-status{flex:0 1 auto;min-width:0}' +
@@ -524,12 +528,15 @@ window.__ModuleLoader__.load({
     };
 
     /**
-     * Install the stylesheet and take over the shipped dock cells.
+     * Install the stylesheet and register the strip.
      *
-     * `activity` carries the whole strip; `usage` is claimed and rendered empty
-     * so the shipped perf row cannot reappear beside it. Reusing a shipped id
-     * is the documented way to occupy that cell, and both registrations are
-     * effects of this plugin's fiber, so unloading restores the shipped cells.
+     * This plugin owns a cell of its own (`statusline`, order -1) so the two
+     * shipped pills keep rendering underneath it. Nothing is shadowed: the
+     * strip sits above the harness's own line instead of replacing it.
+     *
+     * (The original build shadowed `activity`/`usage` at priority -1 to take
+     * those cells over. That is still a supported alternative; it just means
+     * the shipped figures disappear, which is not what we want here.)
      */
     function apply(ctx) {
       ctx.effect(() => {
@@ -547,24 +554,12 @@ window.__ModuleLoader__.load({
 
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'statusbar: dictionaries');
 
-      /* One injection, two cells: a generator yields each registration's
-         disposer, which is the supported multi-registration form.
-
-         Reusing a shipped id at the SAME priority throws; a different priority
-         shadows that cell instead, and the LOWEST priority renders. The shipped
-         cells sit at 0, so -1 is what takes the cell over. The shipped entries
-         stay registered underneath, which is why unloading this plugin restores
-         them — and why a crashing entry abdicates back to them. */
-      ctx.slots.inject('conversation.composer.dock', function* () {
-        yield ctx.slots.register(
-          { name: 'conversation.composer.dock', id: 'activity', order: 0, priority: -1, locale: NS, label: 'Status bar' },
+      ctx.slots.inject('conversation.composer.dock', () =>
+        ctx.slots.register(
+          { name: 'conversation.composer.dock', id: 'statusline', order: -1, locale: NS, label: 'Status line' },
           StatusBar,
-        );
-        yield ctx.slots.register(
-          { name: 'conversation.composer.dock', id: 'usage', order: 1, priority: -1, locale: NS, label: 'Status bar' },
-          () => null,
-        );
-      });
+        ),
+      );
     }
 
     return { inject, apply };
