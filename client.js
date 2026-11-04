@@ -863,7 +863,12 @@ window.__ModuleLoader__.load({
                 {
                   type: 'button',
                   className: 'sb-fx sb-anchor',
-                  title: anchor === ANCHOR_CORNER ? t('anchor.title.corner') : t('anchor.title.above'),
+                  title:
+                    anchor === ANCHOR_CORNER
+                      ? cornerOk
+                        ? t('anchor.title.corner')
+                        : t('anchor.title.tight')
+                      : t('anchor.title.above'),
                   onClick: (event) => {
                     event.stopPropagation();
                     toggleAnchor();
@@ -1001,6 +1006,7 @@ window.__ModuleLoader__.load({
       'anchor.corner': 'corner',
       'anchor.title.above': 'card hangs over the strip, left edges aligned - click to sit it on the strip corner',
       'anchor.title.corner': 'card sits on the strip top-left corner - click to hang it above',
+      'anchor.title.tight': 'corner needs a card-width of room to the left of the strip - none here, so the card hangs above',
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
     };
@@ -1044,6 +1050,7 @@ window.__ModuleLoader__.load({
       'anchor.corner': '角上',
       'anchor.title.above': '卡片挂在状态条上方、左对齐 — 点击改为贴在状态条左角',
       'anchor.title.corner': '卡片贴在状态条左上角 — 点击改回挂在状态条上方',
+      'anchor.title.tight': '角上模式需要状态条左侧留出约一张卡片的宽度 — 这里放不下，卡片先挂在上面',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
     };
