@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-statusbar
+      name: '@local/dsh-statusbar'

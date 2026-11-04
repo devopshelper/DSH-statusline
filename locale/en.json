@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Status Bar",
+    "description": "Takes over the composer status cells with a living terminal strip: breathing accent glow, rotating status phrase, token-flow beads, real turns, tokens, cache-hit and context figures, twelve palettes and a click wave."
+  }
+}
