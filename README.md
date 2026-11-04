@@ -66,6 +66,23 @@ Persisted choices: `localStorage["dsh.statusbar.theme"]` and `localStorage["dsh.
 - the splash restarts via class flip + reflow on a persistent node — never a remount.
 - no `container-type` on the shell: inline-size containment reports zero intrinsic width and collapses the strip.
 
+## Low-frame (pixel) mode
+
+The bead lane is the most expensive thing on screen: eight nodes, each carrying two `box-shadow` layers, animating continuously. On RDP or any software-rendered session that is what stutters. Pixel mode keeps the strip alive but makes it move like an 8-bit sprite.
+
+Toggle it in the card (`pixel`). It persists in `localStorage["dsh.statusbar.pixel"]` and defaults to on when the OS asks for reduced motion.
+
+| Cost | Smooth | Pixel |
+|---|---|---|
+| bead nodes | 8, each with two glow shadows | 4, solid squares, no shadow |
+| bead motion | continuous `translateX` | `steps(8)` - eight sprite positions per loop |
+| strip breathing | `box-shadow` repaint across the whole bar | off, static inset glow |
+| glyph morph | 130 ms while working | 320 ms, `steps(4)` |
+| phrase halo / splash / hover filter | on | off |
+| flow duration floor | 0.5 s | 0.9 s, so four stepped beads still read as flow |
+
+The two toggles compose: `pixel` reduces *how* it moves, `fx off` (lite) removes the whole-surface effects entirely.
+
 ## Build
 
 `client.js` is committed and loaded directly — the runtime has no build step. The stylesheet is vendored at `styles/statusbar.css` and spliced into the bundle:

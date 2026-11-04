@@ -35,6 +35,20 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-bad{color:#ff5252}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-nodata{opacity:.45}' +
       '.dsh-sb-shell [data-sb] .sb-card .dsh-sb-card-head{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:rgba(150,170,190,.85);margin-bottom:5px}' +
+      /* ---- pixel mode: low-frame, low-paint ------------------------------
+         For RDP and other software-rendered sessions. The strip keeps moving,
+         but it moves like an 8-bit sprite: quantised steps instead of a smooth
+         sweep, no glow shadows to re-rasterise, and no full-surface breathing. */
+      '.dsh-sb-shell [data-sb][data-sb-pixel]{animation:none!important;box-shadow:inset 0 0 18px rgba(var(--sb-glow),.12)!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flow i{box-shadow:none!important;border-radius:1px;width:5px;height:5px;animation-timing-function:steps(8,end)!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flow i:nth-child(even){background:var(--sb-accent2);border-radius:1px}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flow-gear{text-shadow:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flower,' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-dots i,' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-zzz i{animation-timing-function:steps(4,end)!important;text-shadow:none!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-status{text-shadow:none!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-splash{display:none!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel][data-sb-hover]{filter:none!important}' +
       '@media (prefers-reduced-motion:reduce){.dsh-sb-shell [data-sb]{animation:none!important}}';
 
     const GLYPHS = ['\u273B', '\u273D', '\u2736', '\u2733', '\u2722', '\u00B7'];
@@ -73,6 +87,11 @@ window.__ModuleLoader__.load({
 
     const STORE_THEME = 'dsh.statusbar.theme';
     const STORE_FX = 'dsh.statusbar.fx';
+    const STORE_PIXEL = 'dsh.statusbar.pixel';
+
+    /** Smooth mode draws 8 beads; pixel mode halves the nodes it has to paint. */
+    const BEADS_SMOOTH = 8;
+    const BEADS_PIXEL = 4;
 
     function readStored(key, fallback, allowed) {
       try {
@@ -88,6 +107,15 @@ window.__ModuleLoader__.load({
         window.localStorage.setItem(key, value);
       } catch (error) {
         /* quota or blocked storage: the choice simply does not persist */
+      }
+    }
+
+    /** Reduced-motion is the sane default for pixel mode. */
+    function prefersReduced() {
+      try {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      } catch (error) {
+        return false;
       }
     }
 
@@ -223,6 +251,7 @@ window.__ModuleLoader__.load({
 
       const [theme, setTheme] = React.useState(() => readStored(STORE_THEME, 'deepseek', THEME_IDS));
       const [lite, setLite] = React.useState(() => readStored(STORE_FX, 'off') === 'on');
+      const [pixel, setPixel] = React.useState(() => readStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off') === 'on');
       const [hover, setHover] = React.useState(false);
       const [cardOpen, setCardOpen] = React.useState(false);
       const [pinned, setPinned] = React.useState(false);
@@ -235,12 +264,17 @@ window.__ModuleLoader__.load({
 
       React.useEffect(() => {
         const phraseTimer = window.setInterval(() => setPhrase((n) => n + 1), working ? 3750 : 5000);
-        const glyphTimer = window.setInterval(() => setGlyph((n) => (n + 1) % GLYPHS.length), working ? 130 : 300);
+        /* Pixel mode morphs the glyph like a sprite: fewer frames, and each
+           tick costs a React render of the whole strip. */
+        const glyphTimer = window.setInterval(
+          () => setGlyph((n) => (n + 1) % GLYPHS.length),
+          pixel ? 320 : working ? 130 : 300,
+        );
         return () => {
           window.clearInterval(phraseTimer);
           window.clearInterval(glyphTimer);
         };
-      }, [working]);
+      }, [working, pixel]);
 
       React.useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
@@ -252,6 +286,13 @@ window.__ModuleLoader__.load({
         setLite((previous) => {
           const next = !previous;
           writeStored(STORE_FX, next ? 'on' : 'off');
+          return next;
+        });
+      };
+      const togglePixel = () => {
+        setPixel((previous) => {
+          const next = !previous;
+          writeStored(STORE_PIXEL, next ? 'on' : 'off');
           return next;
         });
       };
@@ -312,12 +353,15 @@ window.__ModuleLoader__.load({
 
       const surfaceTokens = breakdown ? num(breakdown.systemTokens) + num(breakdown.toolsTokens) + num(breakdown.messageTokens) : null;
 
-      /* Load-bearing: 3.2 / (1 + tps/55) clamped; idle barely drifts. */
-      const tps = working ? (rate > 0 ? rate : 55) : 0;
-      const flowSeconds = working ? Math.max(0.5, Math.min(3.2, 3.2 / (1 + tps / 55))) : 10;
-
       const phrases = working ? WORK_PHRASES : IDLE_PHRASES;
       const phraseText = phrases[phrase % phrases.length];
+
+      /* Load-bearing: 3.2 / (1 + tps/55) clamped; idle barely drifts.
+         Pixel mode keeps the lane above a floor so 4 stepped beads still read
+         as flow instead of a blur. */
+      const tps = working ? (rate > 0 ? rate : 55) : 0;
+      const smoothFlow = working ? Math.max(0.5, Math.min(3.2, 3.2 / (1 + tps / 55))) : 10;
+      const flowSeconds = pixel ? Math.max(0.9, smoothFlow) : smoothFlow;
 
       const cacheBlocks = cachePercent === null ? 0 : Math.max(0, Math.min(5, Math.round(cachePercent / 20)));
       const blockMeter = h(
@@ -354,6 +398,7 @@ window.__ModuleLoader__.load({
         'data-sb-state': working ? 'work' : 'idle',
         'data-sb-hover': hover ? '' : undefined,
         'data-sb-lite': lite ? '' : undefined,
+        'data-sb-pixel': pixel ? '' : undefined,
         ref: barRef,
         role: 'group',
         'aria-label': t('bar.label') + ': ' + (working ? t('state.working') : t('state.idle')),
@@ -421,7 +466,21 @@ window.__ModuleLoader__.load({
                 }),
               ),
             ),
-            h('div', { className: 'sb-tools' }, h('button', { type: 'button', className: 'sb-fx', onClick: toggleFx }, lite ? t('fx.on') : t('fx.off'))),
+            h(
+              'div',
+              { className: 'sb-tools' },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'sb-fx',
+                  title: pixel ? t('pixel.title.on') : t('pixel.title.off'),
+                  onClick: togglePixel,
+                },
+                pixel ? t('pixel.on') : t('pixel.off'),
+              ),
+              h('button', { type: 'button', className: 'sb-fx', onClick: toggleFx }, lite ? t('fx.on') : t('fx.off')),
+            ),
           )
         : null;
 
@@ -457,10 +516,10 @@ window.__ModuleLoader__.load({
               h('i', null),
               h('i', null),
               h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
+              pixel ? null : h('i', null),
+              pixel ? null : h('i', null),
+              pixel ? null : h('i', null),
+              pixel ? null : h('i', null),
               h('span', { className: 'sb-flow-gear' }, '\u2699'),
             ),
           ),
@@ -500,6 +559,10 @@ window.__ModuleLoader__.load({
       'card.hint': 'session figures and palette',
       'fx.off': 'fx off',
       'fx.on': 'fx on',
+      'pixel.off': 'pixel',
+      'pixel.on': 'pixel on',
+      'pixel.title.off': 'step the motion down to a low frame rate (for RDP / software rendering)',
+      'pixel.title.on': 'low-frame motion is on - click for smooth motion',
     };
     const zh = {
       'bar.label': '状态栏',
@@ -525,6 +588,10 @@ window.__ModuleLoader__.load({
       'card.hint': '会话数据与配色',
       'fx.off': '关闭特效',
       'fx.on': '开启特效',
+      'pixel.off': '低帧',
+      'pixel.on': '低帧 开',
+      'pixel.title.off': '把动画降到低帧率（适合远程桌面 / 软件渲染）',
+      'pixel.title.on': '低帧模式已开启 — 点击恢复平滑动画',
     };
 
     /**
