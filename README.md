@@ -114,6 +114,19 @@ In `corner` the card's bottom-right corner meets the strip's top-left corner and
 
 Dragging is orthogonal to the anchor: it records a `translate()` offset on top of whichever anchor is active, pinned for the duration so the card's own mouse-leave cannot close it mid-gesture. Offsets are clamped against the measured, *untransformed* box, so repeated drags cannot creep and the card cannot be lost off-screen. The offset is session-scoped (it is not persisted) and a double-click on the header clears it; the anchor itself is persisted.
 
+## The card's floating layer
+
+The card does not render inside the dock. It is portalled onto `<body>` (`react-dom`'s `createPortal`) into a fixed layer that reproduces the strip's own rectangle, and the layer carries the same `data-sb*` attributes so the palette variables and the pixel/lite overrides still reach the card through the selectors they always used.
+
+This is not decoration. Inside the composer dock the card shares a stacking context with the compose box, which paints later and therefore over it: the card ended up behind the textarea, half-visible and flickering as the composer repainted. Clipping compounds it — any ancestor of the dock is free to have `overflow: hidden`. On `<body>` the card has a context of its own and nothing in the dock can reach it.
+
+Two consequences worth knowing:
+
+- The layer is `position: fixed` at `z-index: 950`: above the dock (the shell's highest non-modal layer is 101) and below anything modal, since the shell's dialogs start at 1000 and toasts at 1100. A card that floats over a dialog would be worse than one that hides behind it.
+- Because the layer stands in for the strip's box, `left: 12px` and `bottom: calc(100% + 8px)` still mean what they meant: the offsets resolve against the strip, not against the viewport. The rectangle is measured when the card opens and re-measured on `resize` and `scroll` (with a sub-pixel change guard so a scroll burst does not re-render the strip for nothing), and the pointer events are switched off on the layer so it never eats a click.
+
+If `react-dom` is unavailable, or the strip could not be measured yet, the card falls back to the old in-place rendering rather than disappearing.
+
 
 ## Demo mode
 
@@ -291,5 +304,6 @@ icon.svg             original artwork
 - The shipped line stays visible below the strip, so cache-hit appears twice. Removing the duplication means taking the cells over (see above), which hides the shipped figures entirely.
 - `ctx` and `tok` were dropped from the strip: the harness already renders context occupancy, and both figures are still in the hover card.
 - Stacking relies on `:has()` matching the strip's own container. It is deliberately written against our element rather than the owner's classes, so the failure mode is "pills sit beside the strip again", not a broken layout elsewhere.
+- The card's floating layer is the one place this plugin leaves the dock. It is portal-ed onto `<body>` because inside the dock the compose box painted over it; see [the floating layer](#the-cards-floating-layer). `_scratch/render-test.mjs` covers the jump (portal target, layer rectangle, z-index, palette attributes, tool row) without a browser.
 - `🪟` and `📦` rendered as tofu in the composer font stack, so `ctx` and `tok` were plain text (and are now gone).
 - Visual verification is per-screenshot; there is no browser automation in this setup.

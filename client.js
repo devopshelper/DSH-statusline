@@ -4,6 +4,19 @@ window.__ModuleLoader__.load({
     const React = require('react');
     const h = React.createElement;
 
+    /**
+     * react-dom, for the card's floating layer. It is part of the web boot's
+     * static module table, but a host that omits it must still get a working
+     * card, so a missing module degrades to the old in-place rendering instead
+     * of throwing at load and taking the whole strip down with it.
+     */
+    let ReactDOM = null;
+    try {
+      ReactDOM = require('react-dom');
+    } catch (error) {
+      ReactDOM = null;
+    }
+
     /** The portable, attribute-driven status-bar stylesheet, verbatim. */
     const CSS = "/* ============================================================================\n   OpenCode Desktop Status Bar — portable stylesheet\n   ----------------------------------------------------------------------------\n   Framework-agnostic. No Solid, no preprocessor, no build step. Drop this in\n   any DOM host and drive it with attributes:\n\n     <div data-sb\n          data-sb-theme=\"cyan\"        <!-- see the palette block at the bottom -->\n          data-sb-state=\"work\"        <!-- idle | work  (+ data-sb-tool on the flow) -->\n          data-sb-lite>               <!-- FX off: no full-surface motion -->\n\n   Everything chromatic flows through four custom properties, so a theme is a\n   four-line patch and every glow keyframe recolors for free.\n   ========================================================================= */\n\n/* ---------------------------------------------------------------- tokens -- */\n\n[data-sb] {\n  /* Chromatic (per theme — overridden by [data-sb-theme=\"…\"] below) */\n  --sb-glow: 0, 229, 255;      /* rgb TRIPLE, no rgb() wrapper — spliced into rgba() */\n  --sb-accent: #00e5ff;        /* solid: glyphs, sparkline, cursor, Zzzz */\n  --sb-accent2: #5ad8ff;       /* second particle lane, whale wash detail */\n  --sb-wash: #04161b;          /* FLAT full-bar tint. Never a gradient. */\n\n  /* Rhythm — one breath is one thought. Do not add easing variety here. */\n  --sb-breath-work: 3.75s;     /* 16 breaths/min, alert */\n  --sb-breath-idle: 5s;        /* 12 breaths/min, resting */\n  --sb-ease-breath: cubic-bezier(0.37, 0, 0.63, 1); /* symmetric in/out */\n\n  /* Type */\n  --sb-fs: 12px;\n  --sb-fs-status: 12.5px;      /* the phrase is the only text allowed above 12 */\n  --sb-fs-meta: 11px;\n  --sb-text: #f2f7ff;\n  --sb-fs-family: inherit;     /* never set a font — inherit the host's UI face */\n\n  /* Layout */\n  --sb-gap-col: 18px;\n  --sb-gap-row: 3px;\n  --sb-pad-x: 16px;\n  --sb-pad-y: 6px;             /* host-adjustable 2–18px */\n\n  /* Particle lane */\n  --sb-flow-w: 128px;\n  --sb-flow-h: 17px;\n  --sb-flow-dur: 1.4s;         /* driven by tok/s — see STYLE.md §7 */\n}\n\n/* ----------------------------------------------------------------- shell -- */\n\n[data-sb] {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  column-gap: var(--sb-gap-col);\n  row-gap: var(--sb-gap-row);\n  width: 100%;\n  padding: var(--sb-pad-y) var(--sb-pad-x);\n  font-family: var(--sb-fs-family);\n  font-size: var(--sb-fs);\n  letter-spacing: 0.3px;\n  color: var(--sb-text);\n  background: #000000;                        /* true black, AMOLED-first */\n  border-top: 1px solid rgba(255, 255, 255, 0.06);\n  box-shadow: inset 0 0 30px rgba(var(--sb-glow), 0.10);\n  position: relative;\n  user-select: none;\n}\n\n/* Groups of related segments, separated by dim `·` glyphs. */\n[data-sb] .sb-group { display: flex; align-items: center; gap: 10px; white-space: nowrap }\n[data-sb] .sb-group.end { margin-left: auto }\n[data-sb] .sb-sep { opacity: 0.35 }\n\n/* The strip itself breathes. One cycle = one thought; speed IS the state. */\n[data-sb][data-sb-state=\"work\"] { animation: sb-breathe var(--sb-breath-work) var(--sb-ease-breath) infinite }\n[data-sb][data-sb-state=\"idle\"] { animation: sb-breathe-idle var(--sb-breath-idle) var(--sb-ease-breath) infinite }\n\n/* Any text that should pulse with the breath — the status phrase, the glyph. */\n[data-sb] .sb-glow { animation: sb-glow var(--sb-breath-work) var(--sb-ease-breath) infinite }\n[data-sb] .sb-alert { animation: sb-alert 1.6s ease-in-out infinite }\n\n/* ---------------------------------------------------------- status phrase -- */\n\n/* Fixed 27ch slot: phrases rotate, the bar must never shuffle sideways. */\n[data-sb] .sb-status {\n  display: inline-block;\n  min-width: 27ch;\n  max-width: 27ch;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  vertical-align: middle;\n  font-size: var(--sb-fs-status);\n}\n/* Idle is quiet, not disabled. Below ~.8 opacity it reads as greyed-out UI. */\n[data-sb][data-sb-state=\"idle\"] .sb-status {\n  opacity: 0.88;\n  font-style: italic;\n  font-weight: 500;\n  color: #eaf2fd;\n  text-shadow: 0 0 7px rgba(var(--sb-glow), 0.35);\n}\n/* Working text is the accent lifted toward white: a raw accent is unreadable\n   on dark palettes (#4d6bfe on #000 is a muddy navy). The first declaration is\n   the fallback; color-mix overrides it wherever supported. */\n[data-sb][data-sb-state=\"work\"] .sb-status {\n  color: var(--sb-text);\n  color: color-mix(in srgb, var(--sb-accent) 42%, #ffffff);\n  font-weight: 600;\n}\n\n/* Claude-style glyph: always glowing, morphs while working. Fixed box width —\n   the glyph set has different advance widths and would shift the whole bar. */\n[data-sb] .sb-flower {\n  display: inline-block;\n  width: 1.2em;\n  text-align: center;\n  font-size: 12px;\n  line-height: 1;\n  color: var(--sb-accent);\n  animation: sb-glow var(--sb-breath-work) var(--sb-ease-breath) infinite;\n}\n[data-sb] .sb-flower.idle {\n  animation: sb-glow-soft var(--sb-breath-idle) var(--sb-ease-breath) infinite;\n}\n\n/* Soft ellipsis, or a hard block cursor for terminal skins. */\n[data-sb] .sb-dots i { display: inline-block; animation: sb-dotfade 1.2s ease-in-out infinite }\n[data-sb] .sb-dots i:nth-child(2) { animation-delay: 0.18s }\n[data-sb] .sb-dots i:nth-child(3) { animation-delay: 0.36s }\n[data-sb] .sb-cursor { display: inline-block; margin-left: 2px; animation: sb-blink 1.05s steps(1) infinite }\n\n/* Sleeping Zzzz: one lazy puff per breath, drifting up and out. */\n[data-sb] .sb-zzz {\n  display: inline-block;\n  margin-left: 6px;\n  font-style: normal;\n  font-size: 10px;\n  font-weight: 700;\n  letter-spacing: 0.5px;\n  color: var(--sb-accent);\n  vertical-align: 1px;\n}\n[data-sb] .sb-zzz i { display: inline-block; font-style: normal; animation: sb-zz var(--sb-breath-idle) ease-out infinite }\n[data-sb] .sb-zzz i:nth-child(2) { animation-delay: 0.55s }\n[data-sb] .sb-zzz i:nth-child(3) { animation-delay: 1.1s }\n[data-sb] .sb-zzz i:nth-child(4) { animation-delay: 1.65s }\n\n[data-sb] .sb-queue { margin-left: 6px; color: #ffc400; font-size: 11px; font-weight: 700; text-shadow: none }\n\n/* ------------------------------------------------------- token pipeline -- */\n\n/* 8 beads, two lanes, left → right. Duration encodes tok/s; nothing else does. */\n[data-sb] .sb-flow {\n  position: relative;\n  display: inline-block;\n  width: var(--sb-flow-w);\n  height: var(--sb-flow-h);\n  overflow: hidden;\n  vertical-align: middle;\n}\n[data-sb] .sb-flow i {\n  position: absolute;\n  left: 0;\n  top: 2px;\n  width: 6px;\n  height: 6px;\n  border-radius: 50%;\n  background: #f8fafc;\n  box-shadow: 0 0 10px rgba(var(--sb-glow), 1), 0 0 3px rgba(255, 255, 255, 0.95);\n  animation: sb-flow var(--sb-flow-dur) linear infinite;\n}\n[data-sb] .sb-flow i:nth-child(2) { animation-delay: calc(var(--sb-flow-dur) * -0.125) }\n[data-sb] .sb-flow i:nth-child(3) { animation-delay: calc(var(--sb-flow-dur) * -0.25) }\n[data-sb] .sb-flow i:nth-child(4) { animation-delay: calc(var(--sb-flow-dur) * -0.375) }\n[data-sb] .sb-flow i:nth-child(5) { animation-delay: calc(var(--sb-flow-dur) * -0.5) }\n[data-sb] .sb-flow i:nth-child(6) { animation-delay: calc(var(--sb-flow-dur) * -0.625) }\n[data-sb] .sb-flow i:nth-child(7) { animation-delay: calc(var(--sb-flow-dur) * -0.75) }\n[data-sb] .sb-flow i:nth-child(8) { animation-delay: calc(var(--sb-flow-dur) * -0.875) }\n[data-sb] .sb-flow i:nth-child(even) {\n  top: 10px;\n  width: 5px;\n  height: 5px;\n  background: var(--sb-accent2);\n  box-shadow: 0 0 9px rgba(var(--sb-glow), 0.95);\n}\n[data-sb] .sb-flow.idle i { background: #64748b; box-shadow: none }\n\n/* Factory mode: bits get pinched down and machined through a spinning gear. */\n[data-sb] .sb-flow.tool i {\n  background: #ffe066;\n  box-shadow: 0 0 10px rgba(255, 196, 0, 0.95);\n  animation-name: sb-flow-factory;\n}\n[data-sb] .sb-flow.tool i:nth-child(even) { background: #ffc400; box-shadow: 0 0 9px rgba(255, 196, 0, 0.9) }\n[data-sb] .sb-flow-gear {\n  position: absolute;\n  left: 50%;\n  top: 50%;\n  z-index: 2;\n  width: 12px;\n  height: 12px;\n  margin: -6px 0 0 -6px;\n  line-height: 12px;\n  text-align: center;\n  font-size: 11px;\n  color: #ffc400;\n  opacity: 0;\n  pointer-events: none;\n  text-shadow: 0 0 8px rgba(255, 196, 0, 0.9);\n  transition: opacity 0.18s ease;\n}\n[data-sb] .sb-flow.tool .sb-flow-gear { opacity: 1; animation: sb-spin 1.6s linear infinite }\n\n/* ------------------------------------------------------------- meters ---- */\n\n/* Cache hit rate as block glyphs: zero subpixel blur, monospace-safe. */\n[data-sb] .sb-blocks { display: inline-block; font-size: var(--sb-fs-meta); line-height: 1; letter-spacing: 1px; vertical-align: middle }\n[data-sb] .sb-blocks .on { color: inherit; text-shadow: 0 0 7px currentColor }\n[data-sb] .sb-blocks .off { opacity: 0.25 }\n[data-sb] .sb-num { font-variant-numeric: tabular-nums }\n\n[data-sb] .sb-flash { animation: sb-flash 0.9s ease-out 1 }\n[data-sb] .sb-bump {\n  position: absolute;\n  left: 100%;\n  top: -3px;\n  margin-left: 5px;\n  font-size: 10px;\n  font-weight: 700;\n  color: #00e676;\n  pointer-events: none;\n  white-space: nowrap;\n  animation: sb-bump 1.2s ease-out forwards;\n}\n[data-sb] .sb-loading { animation: sb-loading 1.3s ease-in-out infinite }\n\n/* ---------------------------------------------------------------- splash -- */\n\n/* Two crests enter from the ends, converge on the click, swell at contact,\n   then bounce home. --sb-x = meeting point in px, --sb-w = bar width in px.\n   Defaults keep the wave sane if a host forgets to measure. */\n[data-sb] .sb-splash { position: absolute; inset: 0; pointer-events: none; overflow: hidden; display: none; --sb-x: 50vw; --sb-w: 100vw }\n[data-sb] .sb-splash.go { display: block }\n[data-sb] .sb-splash i {\n  position: absolute;\n  left: var(--sb-sx, 13%);\n  top: 50%;\n  width: 200px;\n  height: 200px;\n  margin: -100px 0 0 -100px;\n  border-radius: 50%;\n  opacity: 0;\n  background: radial-gradient(circle, rgba(var(--sb-glow), 0.6) 0%, rgba(var(--sb-glow), 0.18) 45%, transparent 72%);\n}\n[data-sb] .sb-splash b,\n[data-sb] .sb-splash u {\n  position: absolute;\n  top: -40%;\n  width: 220px;\n  height: 180%;\n  margin-left: -110px;                        /* centres land exactly on the target */\n  border-radius: 50%;\n  opacity: 0;\n  background: radial-gradient(ellipse at center, rgba(var(--sb-glow), 0.5) 0%, rgba(var(--sb-glow), 0.16) 45%, transparent 72%);\n}\n[data-sb] .sb-splash b { left: 0 }            /* left crest travels right */\n[data-sb] .sb-splash u { left: 100% }         /* right crest travels left */\n[data-sb] .sb-splash.go i { animation: sb-impact 0.55s ease-out 0.4s forwards }\n[data-sb] .sb-splash.go b { animation: sb-wave-in-r 1.2s cubic-bezier(0.3, 0.6, 0.35, 1) forwards }\n[data-sb] .sb-splash.go u { animation: sb-wave-in-l 1.2s cubic-bezier(0.3, 0.6, 0.35, 1) forwards }\n\n/* Incoming-event flash: one-shot inset glow over the whole strip. */\n[data-sb] .sb-ping { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; animation: sb-ping 0.55s ease-out 1 }\n\n/* ---------------------------------------------------------- ocean / VT ---- */\n\n/* Whale is driving: flat wash + a single glint sweeping the top edge. */\n[data-sb][data-sb-ocean] {\n  background: var(--sb-wash);\n  border-top: 1px solid var(--sb-accent);\n  box-shadow: inset 0 0 30px rgba(var(--sb-glow), 0.14);\n}\n[data-sb][data-sb-ocean]::after {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  right: 0;\n  top: 0;\n  height: 2px;\n  pointer-events: none;\n  opacity: 0.75;\n  background: linear-gradient(90deg, transparent 0%, rgba(var(--sb-glow), 0.75) 50%, transparent 100%);\n  background-size: 200% 100%;\n  animation: sb-wave 7s linear infinite;\n}\n[data-sb][data-sb-ocean] .sb-flow.idle i { background: #475569; box-shadow: none }\n\n/* Hover: lean in a touch; the card reveals the numbers the bar truncates. */\n[data-sb][data-sb-hover] { filter: brightness(1.08) }\n\n/* Scanline skin: faint CRT raster over everything, above the content. */\n[data-sb][data-sb-scan]::before {\n  content: \"\";\n  position: absolute;\n  inset: 0;\n  z-index: 1;\n  pointer-events: none;\n  opacity: 0.16;\n  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0 1px, transparent 1px 3px);\n}\n\n/* ---------------------------------------------------------------- card ---- */\n\n/* Anchored bottom-left of the bar. Never follows the pointer. 300px wide. */\n[data-sb] .sb-card {\n  position: absolute;\n  left: 12px;\n  bottom: calc(100% + 8px);\n  z-index: 50;\n  width: 300px;\n  max-width: calc(100vw - 28px);\n  padding: 8px 11px;\n  border-radius: 10px;\n  pointer-events: auto;\n  font-size: 11px;\n  line-height: 1.6;\n  background: #000000;\n  border: 1px solid rgba(var(--sb-glow), 0.22);\n  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.95);\n  animation: sb-card-in 0.16s ease-out 1;\n}\n[data-sb] .sb-card::after {\n  content: \"\";\n  position: absolute;\n  top: 100%;\n  left: 50%;\n  margin-left: -5px;\n  border: 5px solid transparent;\n  border-top-color: rgba(var(--sb-glow), 0.22);\n}\n[data-sb] .sb-card.pinned { border-color: rgba(var(--sb-glow), 0.45) }\n\n[data-sb] .sb-row { display: flex; justify-content: space-between; gap: 16px; white-space: nowrap }\n[data-sb] .sb-k { color: rgba(150, 170, 190, 0.9) }\n[data-sb] .sb-v { color: #ffffff; font-variant-numeric: tabular-nums }\n\n[data-sb] .sb-spark { display: block; width: 100%; height: 26px; margin-top: 5px }\n[data-sb] .sb-spark polyline {\n  fill: none;\n  stroke: var(--sb-accent);\n  stroke-width: 1.5;\n  stroke-linejoin: round;\n  stroke-linecap: round;\n  filter: drop-shadow(0 0 3px rgba(var(--sb-glow), 0.85));\n}\n[data-sb] .sb-spark-base { stroke: rgba(255, 255, 255, 0.1); stroke-width: 1 }\n\n[data-sb] .sb-palette {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  margin-top: 7px;\n  padding-top: 7px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  pointer-events: auto;\n}\n[data-sb] .sb-swatch {\n  width: 13px;\n  height: 13px;\n  padding: 0;\n  border-radius: 50%;\n  border: 1px solid rgba(255, 255, 255, 0.28);\n  cursor: pointer;\n  transition: transform 0.12s ease, border-color 0.15s ease;\n}\n[data-sb] .sb-swatch:hover { transform: scale(1.18) }\n[data-sb] .sb-swatch.on { border: 2px solid #ffffff }\n\n[data-sb] .sb-tools { display: flex; align-items: center; gap: 5px; margin-top: 7px; pointer-events: auto }\n[data-sb] .sb-tool-k { font-size: 9.5px; letter-spacing: 0.6px; text-transform: uppercase; color: rgba(150, 170, 190, 0.85) }\n[data-sb] .sb-tool-v { min-width: 26px; text-align: center; font-size: 10px; color: #fff; font-variant-numeric: tabular-nums }\n[data-sb] .sb-mini {\n  width: 16px;\n  height: 16px;\n  padding: 0;\n  line-height: 1;\n  border-radius: 4px;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  background: transparent;\n  color: #cfd9e6;\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n[data-sb] .sb-mini:hover { border-color: rgba(var(--sb-glow), 0.65); color: #fff }\n[data-sb] .sb-fx {\n  margin-left: auto;\n  padding: 2px 7px;\n  border-radius: 6px;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  background: transparent;\n  color: #cfd9e6;\n  font: inherit;\n  font-size: 9.5px;\n  letter-spacing: 0.5px;\n  text-transform: uppercase;\n  cursor: pointer;\n}\n[data-sb] .sb-fx:hover { border-color: rgba(var(--sb-glow), 0.65); color: #fff }\n\n/* ------------------------------------------------------------- lite mode -- */\n\n/* FX off. Kills every full-surface repaint, keeps small motion. State stays\n   identical — lite is a rendering budget, never a different information set. */\n[data-sb][data-sb-lite] { box-shadow: none !important; animation: none !important }\n[data-sb][data-sb-lite][data-sb-hover] { filter: none }\n[data-sb][data-sb-lite] .sb-ping { display: none }\n[data-sb][data-sb-lite] .sb-splash { display: none !important }\n[data-sb][data-sb-lite] .sb-spark polyline { filter: none }\n/* Freeze the breath but keep a static halo — lite must not mean dim text. */\n[data-sb][data-sb-lite] .sb-glow {\n  animation: none !important;\n  text-shadow: 0 0 8px rgba(var(--sb-glow), 0.6);\n}\n[data-sb][data-sb-lite] .sb-card,\n[data-sb][data-sb-lite] .sb-swatch { transition: none }\n\n/* ----------------------------------------------------------- keyframes --- */\n\n/* Asymmetric on purpose: inhale at 0–38%, short hold to 46%, slow exhale out.\n   A symmetric sine reads as a machine pulsing; this reads as breathing. */\n@keyframes sb-breathe {\n  0%   { box-shadow: inset 0 0 26px rgba(var(--sb-glow), 0.30), 0 0 12px rgba(var(--sb-glow), 0.12) }\n  38%  { box-shadow: inset 0 0 62px rgba(var(--sb-glow), 0.70), 0 0 26px rgba(var(--sb-glow), 0.35) }\n  46%  { box-shadow: inset 0 0 56px rgba(var(--sb-glow), 0.62), 0 0 23px rgba(var(--sb-glow), 0.31) }\n  100% { box-shadow: inset 0 0 26px rgba(var(--sb-glow), 0.30), 0 0 12px rgba(var(--sb-glow), 0.12) }\n}\n@keyframes sb-breathe-idle {\n  0%   { box-shadow: inset 0 0 20px rgba(var(--sb-glow), 0.14), 0 0 8px rgba(var(--sb-glow), 0.05) }\n  38%  { box-shadow: inset 0 0 46px rgba(var(--sb-glow), 0.38), 0 0 16px rgba(var(--sb-glow), 0.16) }\n  46%  { box-shadow: inset 0 0 41px rgba(var(--sb-glow), 0.33), 0 0 14px rgba(var(--sb-glow), 0.13) }\n  100% { box-shadow: inset 0 0 20px rgba(var(--sb-glow), 0.14), 0 0 8px rgba(var(--sb-glow), 0.05) }\n}\n@keyframes sb-glow {\n  0%   { text-shadow: 0 0 6px rgba(var(--sb-glow), 0.40) }\n  38%  { text-shadow: 0 0 14px rgba(var(--sb-glow), 0.95) }\n  46%  { text-shadow: 0 0 12px rgba(var(--sb-glow), 0.85) }\n  100% { text-shadow: 0 0 6px rgba(var(--sb-glow), 0.40) }\n}\n@keyframes sb-glow-soft {\n  0%   { text-shadow: 0 0 4px rgba(var(--sb-glow), 0.45) }\n  38%  { text-shadow: 0 0 9px rgba(var(--sb-glow), 0.85) }\n  46%  { text-shadow: 0 0 8px rgba(var(--sb-glow), 0.75) }\n  100% { text-shadow: 0 0 4px rgba(var(--sb-glow), 0.45) }\n}\n@keyframes sb-alert {\n  0%, 100% { text-shadow: 0 0 6px rgba(255, 23, 68, 0.35) }\n  50%      { text-shadow: 0 0 14px rgba(255, 23, 68, 0.95) }\n}\n@keyframes sb-dotfade { 0%, 100% { opacity: 0.2 } 50% { opacity: 1 } }\n@keyframes sb-blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }\n@keyframes sb-zz {\n  0%   { opacity: 0; transform: translate(0, 2px) scale(0.7) }\n  28%  { opacity: 0.9 }\n  100% { opacity: 0; transform: translate(4px, -9px) scale(1.2) }\n}\n@keyframes sb-flow {\n  0%   { opacity: 0; transform: translateX(0) }\n  12%  { opacity: 1 }\n  88%  { opacity: 1 }\n  100% { opacity: 0; transform: translateX(128px) }\n}\n/* Pinch to 34% through the middle, where the gear sits. */\n@keyframes sb-flow-factory {\n  0%   { opacity: 0;    transform: translateX(0)   scale(0.7) }\n  12%  { opacity: 1;    transform: translateX(16px) scale(1) }\n  44%  { opacity: 0.55; transform: translateX(55px) scale(0.34) }\n  56%  { opacity: 0.55; transform: translateX(73px) scale(0.34) }\n  88%  { opacity: 1;    transform: translateX(112px) scale(1) }\n  100% { opacity: 0;    transform: translateX(128px) scale(0.7) }\n}\n@keyframes sb-wave { 0% { background-position: -160% 0 } 100% { background-position: 160% 0 } }\n@keyframes sb-ping {\n  0%   { box-shadow: inset 0 0 0 rgba(var(--sb-glow), 0); opacity: 1 }\n  20%  { box-shadow: inset 0 0 70px rgba(var(--sb-glow), 0.85) }\n  100% { box-shadow: inset 0 0 0 rgba(var(--sb-glow), 0); opacity: 0 }\n}\n@keyframes sb-impact {\n  0%   { transform: scale(0.2); opacity: 0 }\n  30%  { transform: scale(1.1); opacity: 1 }\n  100% { transform: scale(2.6); opacity: 0 }\n}\n/* 45% → 55% hold is the collision: they swell at contact instead of passing\n   through each other, then rebound. Don't collapse that hold. */\n@keyframes sb-wave-in-r {\n  0%   { transform: translateX(0) scaleX(0.55); opacity: 0 }\n  12%  { opacity: 0.9 }\n  45%  { transform: translateX(var(--sb-x)) scaleX(1.15); opacity: 1 }\n  55%  { transform: translateX(var(--sb-x)) scaleX(1.4); opacity: 1 }\n  100% { transform: translateX(0) scaleX(0.55); opacity: 0 }\n}\n@keyframes sb-wave-in-l {\n  0%   { transform: translateX(0) scaleX(0.55); opacity: 0 }\n  12%  { opacity: 0.9 }\n  45%  { transform: translateX(calc(var(--sb-x) - var(--sb-w))) scaleX(1.15); opacity: 1 }\n  55%  { transform: translateX(calc(var(--sb-x) - var(--sb-w))) scaleX(1.4); opacity: 1 }\n  100% { transform: translateX(0) scaleX(0.55); opacity: 0 }\n}\n@keyframes sb-flash {\n  0%   { filter: none }\n  25%  { filter: brightness(1.9) drop-shadow(0 0 6px currentColor) }\n  100% { filter: none }\n}\n@keyframes sb-bump {\n  0%   { opacity: 1; transform: translateY(0) }\n  60%  { opacity: 1; transform: translateY(-7px) }\n  100% { opacity: 0; transform: translateY(-12px) }\n}\n@keyframes sb-loading { 0%, 100% { opacity: 0.35 } 50% { opacity: 0.95 } }\n@keyframes sb-spin { to { transform: rotate(360deg) } }\n@keyframes sb-card-in { from { opacity: 0 } to { opacity: 1 } }\n\n/* ------------------------------------------------------------- palettes -- */\n\n/* 12 presets. Add one by copying four lines — every glow in the file follows. */\n\n[data-sb][data-sb-theme=\"cyan\"]      { --sb-accent:#00e5ff; --sb-accent2:#5ad8ff; --sb-glow:0,229,255;   --sb-wash:#04161b }\n[data-sb][data-sb-theme=\"green\"]     { --sb-accent:#00e676; --sb-accent2:#57e39a; --sb-glow:0,230,118;   --sb-wash:#04160c }\n[data-sb][data-sb-theme=\"matrix\"]    { --sb-accent:#00ff6a; --sb-accent2:#0aff9d; --sb-glow:0,255,106;   --sb-wash:#02120a }\n[data-sb][data-sb-theme=\"magenta\"]   { --sb-accent:#ff2d95; --sb-accent2:#ff7ab8; --sb-glow:255,45,149;  --sb-wash:#170510 }\n[data-sb][data-sb-theme=\"violet\"]    { --sb-accent:#b026ff; --sb-accent2:#c777ff; --sb-glow:176,38,255;  --sb-wash:#100518 }\n[data-sb][data-sb-theme=\"amber\"]     { --sb-accent:#ffb300; --sb-accent2:#ffcf66; --sb-glow:255,179,0;   --sb-wash:#150f03 }\n[data-sb][data-sb-theme=\"ice\"]       { --sb-accent:#8ad8ff; --sb-accent2:#c7ecff; --sb-glow:138,216,255; --sb-wash:#05111a }\n[data-sb][data-sb-theme=\"blood\"]     { --sb-accent:#ff1744; --sb-accent2:#ff6b86; --sb-glow:255,23,68;   --sb-wash:#150306 }\n[data-sb][data-sb-theme=\"cyberpunk\"] { --sb-accent:#fcee0a; --sb-accent2:#ff2d95; --sb-glow:252,238,10;  --sb-wash:#14120a }\n[data-sb][data-sb-theme=\"cyberwar\"]  { --sb-accent:#ff2b2b; --sb-accent2:#39ff14; --sb-glow:255,43,43;   --sb-wash:#140606 }\n[data-sb][data-sb-theme=\"superblack\"]{ --sb-accent:#ffffff; --sb-accent2:#9aa4b2; --sb-glow:255,255,255; --sb-wash:#000000 }\n[data-sb][data-sb-theme=\"deepseek\"]  { --sb-accent:#4d6bfe; --sb-accent2:#679efe; --sb-glow:77,107,254;  --sb-wash:#0b1226 }\n\n@media (prefers-reduced-motion: reduce) {\n  /* Host may also expose this as data-sb-lite. Both are wiring, not policy. */\n  [data-sb] { animation: none }\n}\n";
 
@@ -98,6 +111,21 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-status{text-shadow:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-splash{display:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel][data-sb-hover]{filter:none!important}' +
+      /* ---- floating layer ---------------------------------------------------
+         The card is portal-ed onto <body>. Inside the composer dock it could
+         not win: the compose box paints in a later stacking context (and the
+         dock's ancestors are free to clip), so an inline card sat behind the
+         textarea and flickered as the composer repainted over it.
+
+         The layer is a fixed stand-in for the strip's own box - same rectangle,
+         same offsets - so `.sb-card { left:12px; bottom:calc(100% + 8px) }` and
+         its corner variant keep resolving against the strip they point at, with
+         no second set of numbers to keep in sync. It carries the same
+         data-sb* attributes the strip does, so the palette variables and the
+         pixel/lite overrides reach the card through the same selectors; the
+         ghost only has to stop looking like a strip. */
+      '.dsh-sb-portal{pointer-events:none;margin:0!important;border:0!important;background:none!important;box-shadow:none!important}' +
+      '.dsh-sb-portal>.dsh-sb-ghost{display:block;width:100%;height:100%;max-width:none;margin:0;padding:0;border:0;border-radius:0;background:none!important;box-shadow:none!important;animation:none!important}' +
       /* ---- DSH's own context meter -----------------------------------------
          The ring and percentage the shipped composer draws after this slot.
          Inert until told otherwise: set --dsh-sb-ctx to any CSS colour on an
@@ -428,11 +456,17 @@ window.__ModuleLoader__.load({
          Deliberately not persisted - a reload should never come back pretending
          to work. */
       const [demo, setDemo] = React.useState(false);
+      /* The strip's box, as measured when the card opens. Null until the first
+         measurement - the card falls back to its in-place rendering for that
+         one frame rather than vanishing. Appended last so the state slots above
+         keep the order the render test asserts against. */
+      const [cardBox, setCardBox] = React.useState(null);
       const working = realWorking || demo;
 
       const barRef = React.useRef(null);
       const splashRef = React.useRef(null);
       const cardRef = React.useRef(null);
+      const boxRef = React.useRef(null);
       const dragRef = React.useRef(null);
       const closeTimer = React.useRef(0);
       const workStart = React.useRef(0);
@@ -493,13 +527,56 @@ window.__ModuleLoader__.load({
 
       /* Corner mode is only honest while there is somewhere for the card to go:
          it grows leftwards, so it needs its own width plus a margin between the
-         window edge and the strip's left edge. Measured on open, not per render. */
-      React.useEffect(() => {
-        if (!cardOpen) return;
+         window edge and the strip's left edge. The same measurement seats the
+         floating layer over the strip's box - one read of the strip serves
+         both, and it is taken on open and on any move rather than per render,
+         because the strip repaints several times a second. */
+      const measureCard = React.useCallback(() => {
         const bar = barRef.current;
-        const rect = bar === null ? null : bar.getBoundingClientRect();
-        setCornerOk(rect !== null && rect.left >= CARD_W + 16);
-      }, [cardOpen]);
+        if (bar === null) return;
+        const rect = bar.getBoundingClientRect();
+        setCornerOk(rect.left >= CARD_W + 16);
+        const next = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        const last = boxRef.current;
+        /* The scroll listener fires in bursts; re-seating the layer on an
+           identical rectangle would just re-render the strip for nothing. */
+        if (
+          last !== null &&
+          Math.abs(last.left - next.left) < 0.5 &&
+          Math.abs(last.top - next.top) < 0.5 &&
+          Math.abs(last.width - next.width) < 0.5 &&
+          Math.abs(last.height - next.height) < 0.5
+        ) {
+          return;
+        }
+        boxRef.current = next;
+        setCardBox(next);
+      }, []);
+
+      React.useEffect(() => {
+        if (!cardOpen) return () => {};
+        measureCard();
+        const follow = () => measureCard();
+        window.addEventListener('resize', follow);
+        window.addEventListener('scroll', follow, true);
+        /* The dock moves without the window resizing: the compose box grows as
+           it is typed into and pushes the strip down. A size observer on the
+           strip's own container catches that, and costs nothing until it
+           happens. Deliberately not a per-frame poll - a pinned card can sit
+           open for minutes and this runs in software-rendered sessions too. */
+        let observer = null;
+        const shell = barRef.current === null ? null : barRef.current.parentElement;
+        if (shell !== null && typeof ResizeObserver === 'function') {
+          observer = new ResizeObserver(follow);
+          observer.observe(shell);
+          if (shell.parentElement !== null) observer.observe(shell.parentElement);
+        }
+        return () => {
+          window.removeEventListener('resize', follow);
+          window.removeEventListener('scroll', follow, true);
+          if (observer !== null) observer.disconnect();
+        };
+      }, [cardOpen, measureCard]);
 
       /* Dragging lives on the header. The window is listened to instead of the
          card so a fast pointer that outruns the repaint does not drop the
@@ -571,6 +648,10 @@ window.__ModuleLoader__.load({
 
       const openCard = () => {
         window.clearTimeout(closeTimer.current);
+        /* Seat the floating layer before the card is allowed to render: a
+           measurement taken after the paint would put the card on screen
+           in-place for one frame, then teleport it out to the layer. */
+        measureCard();
         setCardOpen(true);
       };
       const closeCardSoon = () => {
@@ -763,7 +844,7 @@ window.__ModuleLoader__.load({
           onClick: (event) => {
             event.stopPropagation();
             setPinned((previous) => !previous);
-            setCardOpen(true);
+            openCard();
           },
         },
         h('span', { className: 'sb-flower' + (working ? '' : ' idle'), 'aria-hidden': true }, GLYPHS[glyph]),
@@ -894,6 +975,54 @@ window.__ModuleLoader__.load({
           )
         : null;
 
+      /* Where the card actually lives. Inside the dock it shares a stacking
+         context with the composer and loses to it: the compose box paints over
+         the card. Portalled to <body> the card gets a context of its own - above
+         the dock, below anything modal (the shell's dialogs start at z 1000).
+         Falls back to the inline node when there is no react-dom or no
+         measurement yet, so the card is never simply missing. */
+      const canPortal =
+        card !== null &&
+        cardBox !== null &&
+        ReactDOM !== null &&
+        typeof ReactDOM.createPortal === 'function' &&
+        typeof document !== 'undefined' &&
+        document.body !== null &&
+        document.body !== undefined;
+
+      const cardLayer =
+        !canPortal || ReactDOM === null
+          ? card
+          : ReactDOM.createPortal(
+              h(
+                'div',
+                {
+                  className: 'dsh-sb-shell dsh-sb-portal',
+                  style: {
+                    position: 'fixed',
+                    left: cardBox.left + 'px',
+                    top: cardBox.top + 'px',
+                    width: cardBox.width + 'px',
+                    height: cardBox.height + 'px',
+                    zIndex: 950,
+                  },
+                },
+                h(
+                  'div',
+                  {
+                    className: 'dsh-sb-ghost',
+                    'data-sb': '',
+                    'data-sb-theme': theme,
+                    'data-sb-state': working ? 'work' : 'idle',
+                    'data-sb-lite': lite ? '' : undefined,
+                    'data-sb-pixel': pixel ? '' : undefined,
+                  },
+                  card,
+                ),
+              ),
+              document.body,
+            );
+
       return h(
         'div',
         { className: 'dsh-sb-shell' },
@@ -956,7 +1085,7 @@ window.__ModuleLoader__.load({
           ),
           rightGroup,
           h('span', { className: 'sb-splash', ref: splashRef, 'aria-hidden': true }, h('i', null), h('b', null), h('u', null)),
-          card,
+          cardLayer,
         ),
       );
     }

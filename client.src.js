@@ -4,6 +4,19 @@ window.__ModuleLoader__.load({
     const React = require('react');
     const h = React.createElement;
 
+    /**
+     * react-dom, for the card's floating layer. It is part of the web boot's
+     * static module table, but a host that omits it must still get a working
+     * card, so a missing module degrades to the old in-place rendering instead
+     * of throwing at load and taking the whole strip down with it.
+     */
+    let ReactDOM = null;
+    try {
+      ReactDOM = require('react-dom');
+    } catch (error) {
+      ReactDOM = null;
+    }
+
     /** The portable, attribute-driven status-bar stylesheet, verbatim. */
     const CSS = __SB_CSS__;
 
@@ -98,6 +111,21 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-status{text-shadow:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-splash{display:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel][data-sb-hover]{filter:none!important}' +
+      /* ---- floating layer ---------------------------------------------------
+         The card is portal-ed onto <body>. Inside the composer dock it could
+         not win: the compose box paints in a later stacking context (and the
+         dock's ancestors are free to clip), so an inline card sat behind the
+         textarea and flickered as the composer repainted over it.
+
+         The layer is a fixed stand-in for the strip's own box - same rectangle,
+         same offsets - so `.sb-card { left:12px; bottom:calc(100% + 8px) }` and
+         its corner variant keep resolving against the strip they point at, with
+         no second set of numbers to keep in sync. It carries the same
+         data-sb* attributes the strip does, so the palette variables and the
+         pixel/lite overrides reach the card through the same selectors; the
+         ghost only has to stop looking like a strip. */
+      '.dsh-sb-portal{pointer-events:none;margin:0!important;border:0!important;background:none!important;box-shadow:none!important}' +
+      '.dsh-sb-portal>.dsh-sb-ghost{display:block;width:100%;height:100%;max-width:none;margin:0;padding:0;border:0;border-radius:0;background:none!important;box-shadow:none!important;animation:none!important}' +
       /* ---- DSH's own context meter -----------------------------------------
          The ring and percentage the shipped composer draws after this slot.
          Inert until told otherwise: set --dsh-sb-ctx to any CSS colour on an
@@ -428,11 +456,17 @@ window.__ModuleLoader__.load({
          Deliberately not persisted - a reload should never come back pretending
          to work. */
       const [demo, setDemo] = React.useState(false);
+      /* The strip's box, as measured when the card opens. Null until the first
+         measurement - the card falls back to its in-place rendering for that
+         one frame rather than vanishing. Appended last so the state slots above
+         keep the order the render test asserts against. */
+      const [cardBox, setCardBox] = React.useState(null);
       const working = realWorking || demo;
 
       const barRef = React.useRef(null);
       const splashRef = React.useRef(null);
       const cardRef = React.useRef(null);
+      const boxRef = React.useRef(null);
       const dragRef = React.useRef(null);
       const closeTimer = React.useRef(0);
       const workStart = React.useRef(0);
@@ -493,13 +527,56 @@ window.__ModuleLoader__.load({
 
       /* Corner mode is only honest while there is somewhere for the card to go:
          it grows leftwards, so it needs its own width plus a margin between the
-         window edge and the strip's left edge. Measured on open, not per render. */
-      React.useEffect(() => {
-        if (!cardOpen) return;
+         window edge and the strip's left edge. The same measurement seats the
+         floating layer over the strip's box - one read of the strip serves
+         both, and it is taken on open and on any move rather than per render,
+         because the strip repaints several times a second. */
+      const measureCard = React.useCallback(() => {
         const bar = barRef.current;
-        const rect = bar === null ? null : bar.getBoundingClientRect();
-        setCornerOk(rect !== null && rect.left >= CARD_W + 16);
-      }, [cardOpen]);
+        if (bar === null) return;
+        const rect = bar.getBoundingClientRect();
+        setCornerOk(rect.left >= CARD_W + 16);
+        const next = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        const last = boxRef.current;
+        /* The scroll listener fires in bursts; re-seating the layer on an
+           identical rectangle would just re-render the strip for nothing. */
+        if (
+          last !== null &&
+          Math.abs(last.left - next.left) < 0.5 &&
+          Math.abs(last.top - next.top) < 0.5 &&
+          Math.abs(last.width - next.width) < 0.5 &&
+          Math.abs(last.height - next.height) < 0.5
+        ) {
+          return;
+        }
+        boxRef.current = next;
+        setCardBox(next);
+      }, []);
+
+      React.useEffect(() => {
+        if (!cardOpen) return () => {};
+        measureCard();
+        const follow = () => measureCard();
+        window.addEventListener('resize', follow);
+        window.addEventListener('scroll', follow, true);
+        /* The dock moves without the window resizing: the compose box grows as
+           it is typed into and pushes the strip down. A size observer on the
+           strip's own container catches that, and costs nothing until it
+           happens. Deliberately not a per-frame poll - a pinned card can sit
+           open for minutes and this runs in software-rendered sessions too. */
+        let observer = null;
+        const shell = barRef.current === null ? null : barRef.current.parentElement;
+        if (shell !== null && typeof ResizeObserver === 'function') {
+          observer = new ResizeObserver(follow);
+          observer.observe(shell);
+          if (shell.parentElement !== null) observer.observe(shell.parentElement);
+        }
+        return () => {
+          window.removeEventListener('resize', follow);
+          window.removeEventListener('scroll', follow, true);
+          if (observer !== null) observer.disconnect();
+        };
+      }, [cardOpen, measureCard]);
 
       /* Dragging lives on the header. The window is listened to instead of the
          card so a fast pointer that outruns the repaint does not drop the
@@ -571,6 +648,10 @@ window.__ModuleLoader__.load({
 
       const openCard = () => {
         window.clearTimeout(closeTimer.current);
+        /* Seat the floating layer before the card is allowed to render: a
+           measurement taken after the paint would put the card on screen
+           in-place for one frame, then teleport it out to the layer. */
+        measureCard();
         setCardOpen(true);
       };
       const closeCardSoon = () => {
@@ -763,7 +844,7 @@ window.__ModuleLoader__.load({
           onClick: (event) => {
             event.stopPropagation();
             setPinned((previous) => !previous);
-            setCardOpen(true);
+            openCard();
           },
         },
         h('span', { className: 'sb-flower' + (working ? '' : ' idle'), 'aria-hidden': true }, GLYPHS[glyph]),
@@ -894,6 +975,54 @@ window.__ModuleLoader__.load({
           )
         : null;
 
+      /* Where the card actually lives. Inside the dock it shares a stacking
+         context with the composer and loses to it: the compose box paints over
+         the card. Portalled to <body> the card gets a context of its own - above
+         the dock, below anything modal (the shell's dialogs start at z 1000).
+         Falls back to the inline node when there is no react-dom or no
+         measurement yet, so the card is never simply missing. */
+      const canPortal =
+        card !== null &&
+        cardBox !== null &&
+        ReactDOM !== null &&
+        typeof ReactDOM.createPortal === 'function' &&
+        typeof document !== 'undefined' &&
+        document.body !== null &&
+        document.body !== undefined;
+
+      const cardLayer =
+        !canPortal || ReactDOM === null
+          ? card
+          : ReactDOM.createPortal(
+              h(
+                'div',
+                {
+                  className: 'dsh-sb-shell dsh-sb-portal',
+                  style: {
+                    position: 'fixed',
+                    left: cardBox.left + 'px',
+                    top: cardBox.top + 'px',
+                    width: cardBox.width + 'px',
+                    height: cardBox.height + 'px',
+                    zIndex: 950,
+                  },
+                },
+                h(
+                  'div',
+                  {
+                    className: 'dsh-sb-ghost',
+                    'data-sb': '',
+                    'data-sb-theme': theme,
+                    'data-sb-state': working ? 'work' : 'idle',
+                    'data-sb-lite': lite ? '' : undefined,
+                    'data-sb-pixel': pixel ? '' : undefined,
+                  },
+                  card,
+                ),
+              ),
+              document.body,
+            );
+
       return h(
         'div',
         { className: 'dsh-sb-shell' },
@@ -956,7 +1085,7 @@ window.__ModuleLoader__.load({
           ),
           rightGroup,
           h('span', { className: 'sb-splash', ref: splashRef, 'aria-hidden': true }, h('i', null), h('b', null), h('u', null)),
-          card,
+          cardLayer,
         ),
       );
     }
