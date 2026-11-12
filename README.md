@@ -22,6 +22,8 @@ Three states share one 27ch slot:
 
 The 187 words come from `WORK_VERBS` in `client.src.js` — `Accomplishing` through `Zigzagging`, extracted from Claude Code's own array. The terminal picks one per session and holds it; the strip rotates, which is the only deliberate departure. The trailing dots are a separate animated element, so the words carry no ellipsis of their own.
 
+The vocabulary is replaceable. Settings → Plugins → `phrases` is a textarea: one phrase per line, as many as you like (spaces are trimmed, blank lines ignored). A non-empty list replaces both the working verbs and the idle phrases — what you typed is what the strip says — while the turn-end word (`Crunched for 4s`) and the glyph stay as they are. Empty the box, or hit reset, to get the built-in lists back. The phrases live in `localStorage["dsh.statusbar.phrases"]`; the 27ch slot still truncates long lines, so the strip never shuffles sideways.
+
 The turn-end word is the one thing borrowed wholesale. Claude Code prints `✻ Crunched for 4s` when a turn completes, drawing from a second, much smaller array:
 
 ```js
@@ -109,7 +111,7 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | drag the floating card | moves it anywhere; double-click sends it back to the default seat |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.float"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.float"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.phrases"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
 ## The settings page
 
@@ -118,7 +120,7 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), panel view, the two bars (line / floating card), full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
+| edits | palette (12), panel view, the two bars (line / floating card), the phrase list, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
 | preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
@@ -186,7 +188,7 @@ With the line off there is no shell in the dock, so nothing is hidden and the sh
 
 ### The floating card
 
-The floating card is the same line, `position: fixed` on `<body>`, portalled there for the same reason the panel is (inside the dock it would lose to the compose box). It is dragged by its body anywhere in the window; the position is stored in viewport pixels under `dsh.statusbar.floatpos`, so it comes back where it was left. Double-clicking clears the stored position and returns it to the bottom-centre default seat.
+The floating card is the same line, `position: fixed` on `<body>`, portalled there for the same reason the panel is (inside the dock it would lose to the compose box). It is dragged by its body anywhere in the window; the position is stored in viewport pixels under `dsh.statusbar.floatpos`, so it comes back where it was left. Until it is dragged, its home is the docked bar's above-left corner — the same seat the panel's `above` anchor uses — and it follows the bar as the composer grows. Double-clicking clears the stored position and returns it there; with the status line off there is nothing to hang from, so the fallback home is the bottom-centre seat.
 
 It deliberately has no panel: the chip does not pin, hovering does nothing, and there is no `card`/`board` expansion. The panel belongs to the docked line, which has an anchor to hang it from, so the floating card is unaffected by the card anchor setting, and the board is reachable while the docked line is on.
 

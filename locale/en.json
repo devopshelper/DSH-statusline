@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Status Bar",
-    "description": "A living terminal strip for DeepSeek Harness with two independently switched bars: a docked line under the composer (the running model with its family mark, a rotating status phrase, a token-flow lane - beads, heartbeat, water, a typing terminal line or highway traffic that grows with tok/s - the agent's checklist as step boxes, and real turns, token split, cache-hit and context figures) and a floating card you can drag anywhere. Twelve palettes, a click wave, and a settings page under Plugins."
+    "description": "A living terminal strip for DeepSeek Harness with two independently switched bars: a docked line under the composer (the running model with its family mark, a rotating status phrase, a token-flow lane - beads, heartbeat, water, a typing terminal line or highway traffic that grows with tok/s - the agent's checklist as step boxes, and real turns, token split, cache-hit and context figures) and a floating card you can drag anywhere. The status phrases are editable - any number of your own lines - and there are twelve palettes, a click wave, and a settings page under Plugins."
   }
 }

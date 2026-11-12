@@ -17,6 +17,11 @@ window.__ModuleLoader__.load({
       ReactDOM = null;
     }
 
+    /* Place the floating card before the browser paints. A host that only
+       provides the regular effect (the headless render test does) degrades to
+       the no-op hook rather than failing at load. */
+    const useLayout = typeof React.useLayoutEffect === 'function' ? React.useLayoutEffect : React.useEffect;
+
     /** The portable, attribute-driven status-bar stylesheet, verbatim. */
     const CSS = "/* ============================================================================\n   OpenCode Desktop Status Bar — portable stylesheet\n   ----------------------------------------------------------------------------\n   Framework-agnostic. No Solid, no preprocessor, no build step. Drop this in\n   any DOM host and drive it with attributes:\n\n     <div data-sb\n          data-sb-theme=\"cyan\"        <!-- see the palette block at the bottom -->\n          data-sb-state=\"work\"        <!-- idle | work  (+ data-sb-tool on the flow) -->\n          data-sb-lite>               <!-- FX off: no full-surface motion -->\n\n   Everything chromatic flows through four custom properties, so a theme is a\n   four-line patch and every glow keyframe recolors for free.\n   ========================================================================= */\n\n/* ---------------------------------------------------------------- tokens -- */\n\n[data-sb] {\n  /* Chromatic (per theme — overridden by [data-sb-theme=\"…\"] below) */\n  --sb-glow: 0, 229, 255;      /* rgb TRIPLE, no rgb() wrapper — spliced into rgba() */\n  --sb-accent: #00e5ff;        /* solid: glyphs, sparkline, cursor, Zzzz */\n  --sb-accent2: #5ad8ff;       /* second particle lane, whale wash detail */\n  --sb-wash: #04161b;          /* FLAT full-bar tint. Never a gradient. */\n\n  /* Rhythm — one breath is one thought. Do not add easing variety here. */\n  --sb-breath-work: 3.75s;     /* 16 breaths/min, alert */\n  --sb-breath-idle: 5s;        /* 12 breaths/min, resting */\n  --sb-ease-breath: cubic-bezier(0.37, 0, 0.63, 1); /* symmetric in/out */\n\n  /* Type */\n  --sb-fs: 12px;\n  --sb-fs-status: 12.5px;      /* the phrase is the only text allowed above 12 */\n  --sb-fs-meta: 11px;\n  --sb-text: #f2f7ff;\n  --sb-fs-family: inherit;     /* never set a font — inherit the host's UI face */\n\n  /* Layout */\n  --sb-gap-col: 18px;\n  --sb-gap-row: 3px;\n  --sb-pad-x: 16px;\n  --sb-pad-y: 6px;             /* host-adjustable 2–18px */\n\n  /* Particle lane */\n  --sb-flow-w: 128px;\n  --sb-flow-h: 17px;\n  --sb-flow-dur: 1.4s;         /* driven by tok/s — see STYLE.md §7 */\n}\n\n/* ----------------------------------------------------------------- shell -- */\n\n[data-sb] {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  column-gap: var(--sb-gap-col);\n  row-gap: var(--sb-gap-row);\n  width: 100%;\n  padding: var(--sb-pad-y) var(--sb-pad-x);\n  font-family: var(--sb-fs-family);\n  font-size: var(--sb-fs);\n  letter-spacing: 0.3px;\n  color: var(--sb-text);\n  background: #000000;                        /* true black, AMOLED-first */\n  border-top: 1px solid rgba(255, 255, 255, 0.06);\n  box-shadow: inset 0 0 30px rgba(var(--sb-glow), 0.10);\n  position: relative;\n  user-select: none;\n}\n\n/* Groups of related segments, separated by dim `·` glyphs. */\n[data-sb] .sb-group { display: flex; align-items: center; gap: 10px; white-space: nowrap }\n[data-sb] .sb-group.end { margin-left: auto }\n[data-sb] .sb-sep { opacity: 0.35 }\n\n/* The strip itself breathes. One cycle = one thought; speed IS the state. */\n[data-sb][data-sb-state=\"work\"] { animation: sb-breathe var(--sb-breath-work) var(--sb-ease-breath) infinite }\n[data-sb][data-sb-state=\"idle\"] { animation: sb-breathe-idle var(--sb-breath-idle) var(--sb-ease-breath) infinite }\n\n/* Any text that should pulse with the breath — the status phrase, the glyph. */\n[data-sb] .sb-glow { animation: sb-glow var(--sb-breath-work) var(--sb-ease-breath) infinite }\n[data-sb] .sb-alert { animation: sb-alert 1.6s ease-in-out infinite }\n\n/* ---------------------------------------------------------- status phrase -- */\n\n/* Fixed 27ch slot: phrases rotate, the bar must never shuffle sideways. */\n[data-sb] .sb-status {\n  display: inline-block;\n  min-width: 27ch;\n  max-width: 27ch;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  vertical-align: middle;\n  font-size: var(--sb-fs-status);\n}\n/* Idle is quiet, not disabled. Below ~.8 opacity it reads as greyed-out UI. */\n[data-sb][data-sb-state=\"idle\"] .sb-status {\n  opacity: 0.88;\n  font-style: italic;\n  font-weight: 500;\n  color: #eaf2fd;\n  text-shadow: 0 0 7px rgba(var(--sb-glow), 0.35);\n}\n/* Working text is the accent lifted toward white: a raw accent is unreadable\n   on dark palettes (#4d6bfe on #000 is a muddy navy). The first declaration is\n   the fallback; color-mix overrides it wherever supported. */\n[data-sb][data-sb-state=\"work\"] .sb-status {\n  color: var(--sb-text);\n  color: color-mix(in srgb, var(--sb-accent) 42%, #ffffff);\n  font-weight: 600;\n}\n\n/* Claude-style glyph: always glowing, morphs while working. Fixed box width —\n   the glyph set has different advance widths and would shift the whole bar. */\n[data-sb] .sb-flower {\n  display: inline-block;\n  width: 1.2em;\n  text-align: center;\n  font-size: 12px;\n  line-height: 1;\n  color: var(--sb-accent);\n  animation: sb-glow var(--sb-breath-work) var(--sb-ease-breath) infinite;\n}\n[data-sb] .sb-flower.idle {\n  animation: sb-glow-soft var(--sb-breath-idle) var(--sb-ease-breath) infinite;\n}\n\n/* Soft ellipsis, or a hard block cursor for terminal skins. */\n[data-sb] .sb-dots i { display: inline-block; animation: sb-dotfade 1.2s ease-in-out infinite }\n[data-sb] .sb-dots i:nth-child(2) { animation-delay: 0.18s }\n[data-sb] .sb-dots i:nth-child(3) { animation-delay: 0.36s }\n[data-sb] .sb-cursor { display: inline-block; margin-left: 2px; animation: sb-blink 1.05s steps(1) infinite }\n\n/* Sleeping Zzzz: one lazy puff per breath, drifting up and out. */\n[data-sb] .sb-zzz {\n  display: inline-block;\n  margin-left: 6px;\n  font-style: normal;\n  font-size: 10px;\n  font-weight: 700;\n  letter-spacing: 0.5px;\n  color: var(--sb-accent);\n  vertical-align: 1px;\n}\n[data-sb] .sb-zzz i { display: inline-block; font-style: normal; animation: sb-zz var(--sb-breath-idle) ease-out infinite }\n[data-sb] .sb-zzz i:nth-child(2) { animation-delay: 0.55s }\n[data-sb] .sb-zzz i:nth-child(3) { animation-delay: 1.1s }\n[data-sb] .sb-zzz i:nth-child(4) { animation-delay: 1.65s }\n\n[data-sb] .sb-queue { margin-left: 6px; color: #ffc400; font-size: 11px; font-weight: 700; text-shadow: none }\n\n/* ------------------------------------------------------- token pipeline -- */\n\n/* 8 beads, two lanes, left → right. Duration encodes tok/s; nothing else does. */\n[data-sb] .sb-flow {\n  position: relative;\n  display: inline-block;\n  width: var(--sb-flow-w);\n  height: var(--sb-flow-h);\n  overflow: hidden;\n  vertical-align: middle;\n}\n[data-sb] .sb-flow i {\n  position: absolute;\n  left: 0;\n  top: 2px;\n  width: 6px;\n  height: 6px;\n  border-radius: 50%;\n  background: #f8fafc;\n  box-shadow: 0 0 10px rgba(var(--sb-glow), 1), 0 0 3px rgba(255, 255, 255, 0.95);\n  animation: sb-flow var(--sb-flow-dur) linear infinite;\n}\n[data-sb] .sb-flow i:nth-child(2) { animation-delay: calc(var(--sb-flow-dur) * -0.125) }\n[data-sb] .sb-flow i:nth-child(3) { animation-delay: calc(var(--sb-flow-dur) * -0.25) }\n[data-sb] .sb-flow i:nth-child(4) { animation-delay: calc(var(--sb-flow-dur) * -0.375) }\n[data-sb] .sb-flow i:nth-child(5) { animation-delay: calc(var(--sb-flow-dur) * -0.5) }\n[data-sb] .sb-flow i:nth-child(6) { animation-delay: calc(var(--sb-flow-dur) * -0.625) }\n[data-sb] .sb-flow i:nth-child(7) { animation-delay: calc(var(--sb-flow-dur) * -0.75) }\n[data-sb] .sb-flow i:nth-child(8) { animation-delay: calc(var(--sb-flow-dur) * -0.875) }\n[data-sb] .sb-flow i:nth-child(even) {\n  top: 10px;\n  width: 5px;\n  height: 5px;\n  background: var(--sb-accent2);\n  box-shadow: 0 0 9px rgba(var(--sb-glow), 0.95);\n}\n[data-sb] .sb-flow.idle i { background: #64748b; box-shadow: none }\n\n/* Factory mode: bits get pinched down and machined through a spinning gear. */\n[data-sb] .sb-flow.tool i {\n  background: #ffe066;\n  box-shadow: 0 0 10px rgba(255, 196, 0, 0.95);\n  animation-name: sb-flow-factory;\n}\n[data-sb] .sb-flow.tool i:nth-child(even) { background: #ffc400; box-shadow: 0 0 9px rgba(255, 196, 0, 0.9) }\n[data-sb] .sb-flow-gear {\n  position: absolute;\n  left: 50%;\n  top: 50%;\n  z-index: 2;\n  width: 12px;\n  height: 12px;\n  margin: -6px 0 0 -6px;\n  line-height: 12px;\n  text-align: center;\n  font-size: 11px;\n  color: #ffc400;\n  opacity: 0;\n  pointer-events: none;\n  text-shadow: 0 0 8px rgba(255, 196, 0, 0.9);\n  transition: opacity 0.18s ease;\n}\n[data-sb] .sb-flow.tool .sb-flow-gear { opacity: 1; animation: sb-spin 1.6s linear infinite }\n\n/* ------------------------------------------------------------- meters ---- */\n\n/* Cache hit rate as block glyphs: zero subpixel blur, monospace-safe. */\n[data-sb] .sb-blocks { display: inline-block; font-size: var(--sb-fs-meta); line-height: 1; letter-spacing: 1px; vertical-align: middle }\n[data-sb] .sb-blocks .on { color: inherit; text-shadow: 0 0 7px currentColor }\n[data-sb] .sb-blocks .off { opacity: 0.25 }\n[data-sb] .sb-num { font-variant-numeric: tabular-nums }\n\n[data-sb] .sb-flash { animation: sb-flash 0.9s ease-out 1 }\n[data-sb] .sb-bump {\n  position: absolute;\n  left: 100%;\n  top: -3px;\n  margin-left: 5px;\n  font-size: 10px;\n  font-weight: 700;\n  color: #00e676;\n  pointer-events: none;\n  white-space: nowrap;\n  animation: sb-bump 1.2s ease-out forwards;\n}\n[data-sb] .sb-loading { animation: sb-loading 1.3s ease-in-out infinite }\n\n/* ---------------------------------------------------------------- splash -- */\n\n/* Two crests enter from the ends, converge on the click, swell at contact,\n   then bounce home. --sb-x = meeting point in px, --sb-w = bar width in px.\n   Defaults keep the wave sane if a host forgets to measure. */\n[data-sb] .sb-splash { position: absolute; inset: 0; pointer-events: none; overflow: hidden; display: none; --sb-x: 50vw; --sb-w: 100vw }\n[data-sb] .sb-splash.go { display: block }\n[data-sb] .sb-splash i {\n  position: absolute;\n  left: var(--sb-sx, 13%);\n  top: 50%;\n  width: 200px;\n  height: 200px;\n  margin: -100px 0 0 -100px;\n  border-radius: 50%;\n  opacity: 0;\n  background: radial-gradient(circle, rgba(var(--sb-glow), 0.6) 0%, rgba(var(--sb-glow), 0.18) 45%, transparent 72%);\n}\n[data-sb] .sb-splash b,\n[data-sb] .sb-splash u {\n  position: absolute;\n  top: -40%;\n  width: 220px;\n  height: 180%;\n  margin-left: -110px;                        /* centres land exactly on the target */\n  border-radius: 50%;\n  opacity: 0;\n  background: radial-gradient(ellipse at center, rgba(var(--sb-glow), 0.5) 0%, rgba(var(--sb-glow), 0.16) 45%, transparent 72%);\n}\n[data-sb] .sb-splash b { left: 0 }            /* left crest travels right */\n[data-sb] .sb-splash u { left: 100% }         /* right crest travels left */\n[data-sb] .sb-splash.go i { animation: sb-impact 0.55s ease-out 0.4s forwards }\n[data-sb] .sb-splash.go b { animation: sb-wave-in-r 1.2s cubic-bezier(0.3, 0.6, 0.35, 1) forwards }\n[data-sb] .sb-splash.go u { animation: sb-wave-in-l 1.2s cubic-bezier(0.3, 0.6, 0.35, 1) forwards }\n\n/* Incoming-event flash: one-shot inset glow over the whole strip. */\n[data-sb] .sb-ping { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; animation: sb-ping 0.55s ease-out 1 }\n\n/* ---------------------------------------------------------- ocean / VT ---- */\n\n/* Whale is driving: flat wash + a single glint sweeping the top edge. */\n[data-sb][data-sb-ocean] {\n  background: var(--sb-wash);\n  border-top: 1px solid var(--sb-accent);\n  box-shadow: inset 0 0 30px rgba(var(--sb-glow), 0.14);\n}\n[data-sb][data-sb-ocean]::after {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  right: 0;\n  top: 0;\n  height: 2px;\n  pointer-events: none;\n  opacity: 0.75;\n  background: linear-gradient(90deg, transparent 0%, rgba(var(--sb-glow), 0.75) 50%, transparent 100%);\n  background-size: 200% 100%;\n  animation: sb-wave 7s linear infinite;\n}\n[data-sb][data-sb-ocean] .sb-flow.idle i { background: #475569; box-shadow: none }\n\n/* Hover: lean in a touch; the card reveals the numbers the bar truncates. */\n[data-sb][data-sb-hover] { filter: brightness(1.08) }\n\n/* Scanline skin: faint CRT raster over everything, above the content. */\n[data-sb][data-sb-scan]::before {\n  content: \"\";\n  position: absolute;\n  inset: 0;\n  z-index: 1;\n  pointer-events: none;\n  opacity: 0.16;\n  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0 1px, transparent 1px 3px);\n}\n\n/* ---------------------------------------------------------------- card ---- */\n\n/* Anchored bottom-left of the bar. Never follows the pointer. 300px wide. */\n[data-sb] .sb-card {\n  position: absolute;\n  left: 12px;\n  bottom: calc(100% + 8px);\n  z-index: 50;\n  width: 300px;\n  max-width: calc(100vw - 28px);\n  padding: 8px 11px;\n  border-radius: 10px;\n  pointer-events: auto;\n  font-size: 11px;\n  line-height: 1.6;\n  background: #000000;\n  border: 1px solid rgba(var(--sb-glow), 0.22);\n  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.95);\n  animation: sb-card-in 0.16s ease-out 1;\n}\n[data-sb] .sb-card::after {\n  content: \"\";\n  position: absolute;\n  top: 100%;\n  left: 50%;\n  margin-left: -5px;\n  border: 5px solid transparent;\n  border-top-color: rgba(var(--sb-glow), 0.22);\n}\n[data-sb] .sb-card.pinned { border-color: rgba(var(--sb-glow), 0.45) }\n\n[data-sb] .sb-row { display: flex; justify-content: space-between; gap: 16px; white-space: nowrap }\n[data-sb] .sb-k { color: rgba(150, 170, 190, 0.9) }\n[data-sb] .sb-v { color: #ffffff; font-variant-numeric: tabular-nums }\n\n[data-sb] .sb-spark { display: block; width: 100%; height: 26px; margin-top: 5px }\n[data-sb] .sb-spark polyline {\n  fill: none;\n  stroke: var(--sb-accent);\n  stroke-width: 1.5;\n  stroke-linejoin: round;\n  stroke-linecap: round;\n  filter: drop-shadow(0 0 3px rgba(var(--sb-glow), 0.85));\n}\n[data-sb] .sb-spark-base { stroke: rgba(255, 255, 255, 0.1); stroke-width: 1 }\n\n[data-sb] .sb-palette {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  margin-top: 7px;\n  padding-top: 7px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  pointer-events: auto;\n}\n[data-sb] .sb-swatch {\n  width: 13px;\n  height: 13px;\n  padding: 0;\n  border-radius: 50%;\n  border: 1px solid rgba(255, 255, 255, 0.28);\n  cursor: pointer;\n  transition: transform 0.12s ease, border-color 0.15s ease;\n}\n[data-sb] .sb-swatch:hover { transform: scale(1.18) }\n[data-sb] .sb-swatch.on { border: 2px solid #ffffff }\n\n[data-sb] .sb-tools { display: flex; align-items: center; gap: 5px; margin-top: 7px; pointer-events: auto }\n[data-sb] .sb-tool-k { font-size: 9.5px; letter-spacing: 0.6px; text-transform: uppercase; color: rgba(150, 170, 190, 0.85) }\n[data-sb] .sb-tool-v { min-width: 26px; text-align: center; font-size: 10px; color: #fff; font-variant-numeric: tabular-nums }\n[data-sb] .sb-mini {\n  width: 16px;\n  height: 16px;\n  padding: 0;\n  line-height: 1;\n  border-radius: 4px;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  background: transparent;\n  color: #cfd9e6;\n  font: inherit;\n  font-size: 11px;\n  cursor: pointer;\n}\n[data-sb] .sb-mini:hover { border-color: rgba(var(--sb-glow), 0.65); color: #fff }\n[data-sb] .sb-fx {\n  margin-left: auto;\n  padding: 2px 7px;\n  border-radius: 6px;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  background: transparent;\n  color: #cfd9e6;\n  font: inherit;\n  font-size: 9.5px;\n  letter-spacing: 0.5px;\n  text-transform: uppercase;\n  cursor: pointer;\n}\n[data-sb] .sb-fx:hover { border-color: rgba(var(--sb-glow), 0.65); color: #fff }\n\n/* ------------------------------------------------------------- lite mode -- */\n\n/* FX off. Kills every full-surface repaint, keeps small motion. State stays\n   identical — lite is a rendering budget, never a different information set. */\n[data-sb][data-sb-lite] { box-shadow: none !important; animation: none !important }\n[data-sb][data-sb-lite][data-sb-hover] { filter: none }\n[data-sb][data-sb-lite] .sb-ping { display: none }\n[data-sb][data-sb-lite] .sb-splash { display: none !important }\n[data-sb][data-sb-lite] .sb-spark polyline { filter: none }\n/* Freeze the breath but keep a static halo — lite must not mean dim text. */\n[data-sb][data-sb-lite] .sb-glow {\n  animation: none !important;\n  text-shadow: 0 0 8px rgba(var(--sb-glow), 0.6);\n}\n[data-sb][data-sb-lite] .sb-card,\n[data-sb][data-sb-lite] .sb-swatch { transition: none }\n\n/* ----------------------------------------------------------- keyframes --- */\n\n/* Asymmetric on purpose: inhale at 0–38%, short hold to 46%, slow exhale out.\n   A symmetric sine reads as a machine pulsing; this reads as breathing. */\n@keyframes sb-breathe {\n  0%   { box-shadow: inset 0 0 26px rgba(var(--sb-glow), 0.30), 0 0 12px rgba(var(--sb-glow), 0.12) }\n  38%  { box-shadow: inset 0 0 62px rgba(var(--sb-glow), 0.70), 0 0 26px rgba(var(--sb-glow), 0.35) }\n  46%  { box-shadow: inset 0 0 56px rgba(var(--sb-glow), 0.62), 0 0 23px rgba(var(--sb-glow), 0.31) }\n  100% { box-shadow: inset 0 0 26px rgba(var(--sb-glow), 0.30), 0 0 12px rgba(var(--sb-glow), 0.12) }\n}\n@keyframes sb-breathe-idle {\n  0%   { box-shadow: inset 0 0 20px rgba(var(--sb-glow), 0.14), 0 0 8px rgba(var(--sb-glow), 0.05) }\n  38%  { box-shadow: inset 0 0 46px rgba(var(--sb-glow), 0.38), 0 0 16px rgba(var(--sb-glow), 0.16) }\n  46%  { box-shadow: inset 0 0 41px rgba(var(--sb-glow), 0.33), 0 0 14px rgba(var(--sb-glow), 0.13) }\n  100% { box-shadow: inset 0 0 20px rgba(var(--sb-glow), 0.14), 0 0 8px rgba(var(--sb-glow), 0.05) }\n}\n@keyframes sb-glow {\n  0%   { text-shadow: 0 0 6px rgba(var(--sb-glow), 0.40) }\n  38%  { text-shadow: 0 0 14px rgba(var(--sb-glow), 0.95) }\n  46%  { text-shadow: 0 0 12px rgba(var(--sb-glow), 0.85) }\n  100% { text-shadow: 0 0 6px rgba(var(--sb-glow), 0.40) }\n}\n@keyframes sb-glow-soft {\n  0%   { text-shadow: 0 0 4px rgba(var(--sb-glow), 0.45) }\n  38%  { text-shadow: 0 0 9px rgba(var(--sb-glow), 0.85) }\n  46%  { text-shadow: 0 0 8px rgba(var(--sb-glow), 0.75) }\n  100% { text-shadow: 0 0 4px rgba(var(--sb-glow), 0.45) }\n}\n@keyframes sb-alert {\n  0%, 100% { text-shadow: 0 0 6px rgba(255, 23, 68, 0.35) }\n  50%      { text-shadow: 0 0 14px rgba(255, 23, 68, 0.95) }\n}\n@keyframes sb-dotfade { 0%, 100% { opacity: 0.2 } 50% { opacity: 1 } }\n@keyframes sb-blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }\n@keyframes sb-zz {\n  0%   { opacity: 0; transform: translate(0, 2px) scale(0.7) }\n  28%  { opacity: 0.9 }\n  100% { opacity: 0; transform: translate(4px, -9px) scale(1.2) }\n}\n@keyframes sb-flow {\n  0%   { opacity: 0; transform: translateX(0) }\n  12%  { opacity: 1 }\n  88%  { opacity: 1 }\n  100% { opacity: 0; transform: translateX(128px) }\n}\n/* Pinch to 34% through the middle, where the gear sits. */\n@keyframes sb-flow-factory {\n  0%   { opacity: 0;    transform: translateX(0)   scale(0.7) }\n  12%  { opacity: 1;    transform: translateX(16px) scale(1) }\n  44%  { opacity: 0.55; transform: translateX(55px) scale(0.34) }\n  56%  { opacity: 0.55; transform: translateX(73px) scale(0.34) }\n  88%  { opacity: 1;    transform: translateX(112px) scale(1) }\n  100% { opacity: 0;    transform: translateX(128px) scale(0.7) }\n}\n@keyframes sb-wave { 0% { background-position: -160% 0 } 100% { background-position: 160% 0 } }\n@keyframes sb-ping {\n  0%   { box-shadow: inset 0 0 0 rgba(var(--sb-glow), 0); opacity: 1 }\n  20%  { box-shadow: inset 0 0 70px rgba(var(--sb-glow), 0.85) }\n  100% { box-shadow: inset 0 0 0 rgba(var(--sb-glow), 0); opacity: 0 }\n}\n@keyframes sb-impact {\n  0%   { transform: scale(0.2); opacity: 0 }\n  30%  { transform: scale(1.1); opacity: 1 }\n  100% { transform: scale(2.6); opacity: 0 }\n}\n/* 45% → 55% hold is the collision: they swell at contact instead of passing\n   through each other, then rebound. Don't collapse that hold. */\n@keyframes sb-wave-in-r {\n  0%   { transform: translateX(0) scaleX(0.55); opacity: 0 }\n  12%  { opacity: 0.9 }\n  45%  { transform: translateX(var(--sb-x)) scaleX(1.15); opacity: 1 }\n  55%  { transform: translateX(var(--sb-x)) scaleX(1.4); opacity: 1 }\n  100% { transform: translateX(0) scaleX(0.55); opacity: 0 }\n}\n@keyframes sb-wave-in-l {\n  0%   { transform: translateX(0) scaleX(0.55); opacity: 0 }\n  12%  { opacity: 0.9 }\n  45%  { transform: translateX(calc(var(--sb-x) - var(--sb-w))) scaleX(1.15); opacity: 1 }\n  55%  { transform: translateX(calc(var(--sb-x) - var(--sb-w))) scaleX(1.4); opacity: 1 }\n  100% { transform: translateX(0) scaleX(0.55); opacity: 0 }\n}\n@keyframes sb-flash {\n  0%   { filter: none }\n  25%  { filter: brightness(1.9) drop-shadow(0 0 6px currentColor) }\n  100% { filter: none }\n}\n@keyframes sb-bump {\n  0%   { opacity: 1; transform: translateY(0) }\n  60%  { opacity: 1; transform: translateY(-7px) }\n  100% { opacity: 0; transform: translateY(-12px) }\n}\n@keyframes sb-loading { 0%, 100% { opacity: 0.35 } 50% { opacity: 0.95 } }\n@keyframes sb-spin { to { transform: rotate(360deg) } }\n@keyframes sb-card-in { from { opacity: 0 } to { opacity: 1 } }\n\n/* ------------------------------------------------------------- palettes -- */\n\n/* 12 presets. Add one by copying four lines — every glow in the file follows. */\n\n[data-sb][data-sb-theme=\"cyan\"]      { --sb-accent:#00e5ff; --sb-accent2:#5ad8ff; --sb-glow:0,229,255;   --sb-wash:#04161b }\n[data-sb][data-sb-theme=\"green\"]     { --sb-accent:#00e676; --sb-accent2:#57e39a; --sb-glow:0,230,118;   --sb-wash:#04160c }\n[data-sb][data-sb-theme=\"matrix\"]    { --sb-accent:#00ff6a; --sb-accent2:#0aff9d; --sb-glow:0,255,106;   --sb-wash:#02120a }\n[data-sb][data-sb-theme=\"magenta\"]   { --sb-accent:#ff2d95; --sb-accent2:#ff7ab8; --sb-glow:255,45,149;  --sb-wash:#170510 }\n[data-sb][data-sb-theme=\"violet\"]    { --sb-accent:#b026ff; --sb-accent2:#c777ff; --sb-glow:176,38,255;  --sb-wash:#100518 }\n[data-sb][data-sb-theme=\"amber\"]     { --sb-accent:#ffb300; --sb-accent2:#ffcf66; --sb-glow:255,179,0;   --sb-wash:#150f03 }\n[data-sb][data-sb-theme=\"ice\"]       { --sb-accent:#8ad8ff; --sb-accent2:#c7ecff; --sb-glow:138,216,255; --sb-wash:#05111a }\n[data-sb][data-sb-theme=\"blood\"]     { --sb-accent:#ff1744; --sb-accent2:#ff6b86; --sb-glow:255,23,68;   --sb-wash:#150306 }\n[data-sb][data-sb-theme=\"cyberpunk\"] { --sb-accent:#fcee0a; --sb-accent2:#ff2d95; --sb-glow:252,238,10;  --sb-wash:#14120a }\n[data-sb][data-sb-theme=\"cyberwar\"]  { --sb-accent:#ff2b2b; --sb-accent2:#39ff14; --sb-glow:255,43,43;   --sb-wash:#140606 }\n[data-sb][data-sb-theme=\"superblack\"]{ --sb-accent:#ffffff; --sb-accent2:#9aa4b2; --sb-glow:255,255,255; --sb-wash:#000000 }\n[data-sb][data-sb-theme=\"deepseek\"]  { --sb-accent:#4d6bfe; --sb-accent2:#679efe; --sb-glow:77,107,254;  --sb-wash:#0b1226 }\n\n@media (prefers-reduced-motion: reduce) {\n  /* Host may also expose this as data-sb-lite. Both are wiring, not policy. */\n  [data-sb] { animation: none }\n}\n";
 
@@ -351,6 +356,9 @@ window.__ModuleLoader__.load({
       '.dsh-sb-settings .sb-set-swatch.on{border:2px solid var(--dsw-alias-label-primary);transform:scale(1.1)}' +
       '@media (hover:hover){.dsh-sb-settings .sb-set-swatch:hover{transform:scale(1.15)}}' +
       '.dsh-sb-settings .sb-set-swatch:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}' +
+      '.dsh-sb-settings .sb-set-row:has(.sb-set-textarea){align-items:flex-start}' +
+      '.dsh-sb-settings .sb-set-textarea{flex:1 1 320px;min-width:0;min-height:58px;padding:7px 9px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:transparent;color:inherit;font:inherit;resize:vertical}' +
+      '.dsh-sb-settings .sb-set-textarea:focus{outline:none;border-color:var(--dsw-alias-label-tertiary)}' +
       '.dsh-sb-settings .sb-set-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2)}' +
       '.dsh-sb-settings .sb-set-hint{color:var(--dsw-alias-label-tertiary);font-size:11px}';
 
@@ -506,6 +514,7 @@ window.__ModuleLoader__.load({
     const STORE_COLLAPSE = 'dsh.statusbar.collapse';
     const STORE_STRIP = 'dsh.statusbar.strip';
     const STORE_FLOAT = 'dsh.statusbar.float';
+    const STORE_PHRASES = 'dsh.statusbar.phrases';
     const STORE_FLOATPOS = 'dsh.statusbar.floatpos';
     const STORE_WIDTH = 'dsh.statusbar.width';
     const STORE_HEIGHT = 'dsh.statusbar.height';
@@ -651,6 +660,19 @@ window.__ModuleLoader__.load({
       } catch (error) {
         return null;
       }
+    }
+
+    /* The phrase editor stores one phrase per line, raw. Parsing lives here so
+       the strip and the settings page agree on trimming and empty lines. */
+    function parsePhrases(raw) {
+      if (typeof raw !== 'string') return [];
+      return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    }
+    function readPhrases() {
+      return parsePhrases(readStored(STORE_PHRASES, ''));
     }
 
     /** Reduced-motion is the sane default for pixel mode. */
@@ -966,6 +988,13 @@ window.__ModuleLoader__.load({
          time; after that it is viewport pixels and persisted. */
       const [floatPos, setFloatPos] = React.useState(readFloatBox);
       const [floatDragging, setFloatDragging] = React.useState(false);
+      /* The floating card's home: the docked bar's above-left corner, the same
+         seat the panel's `above` anchor uses. A drag replaces it, and a
+         double-click returns to it. Null while there is no docked bar, so the
+         CSS bottom-centre seat applies. */
+      const [floatSeat, setFloatSeat] = React.useState(null);
+      /* User phrases, one per line. Empty means the built-in vocabulary. */
+      const [phrases, setPhrases] = React.useState(readPhrases);
       const stripHidden = strip === HIDE;
       const working = realWorking || demo;
 
@@ -996,6 +1025,7 @@ window.__ModuleLoader__.load({
           setCollapsed(readStored(STORE_COLLAPSE, 'off') === 'on');
           setStrip(readStored(STORE_STRIP, SHOW, [SHOW, HIDE]));
           setFloatOn(readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]) === SHOW);
+          setPhrases(readPhrases());
         };
         window.addEventListener(SETTINGS_EVENT, sync);
         return () => window.removeEventListener(SETTINGS_EVENT, sync);
@@ -1258,6 +1288,41 @@ window.__ModuleLoader__.load({
         };
       }, [floatDragging, pixel]);
 
+      /* Seat the floating card above the docked bar and keep it there until it
+         is dragged. Measured before paint, then followed on resize and on the
+         dock growing: the composer pushes the bar down as it is typed into. */
+      useLayout(() => {
+        if (!floatOn || stripHidden || floatPos !== null) return () => {};
+        const seat = () => {
+          const bar = barRef.current;
+          const el = floatRef.current;
+          if (bar === null || el === null) return;
+          const stripRect = bar.getBoundingClientRect();
+          const rect = el.getBoundingClientRect();
+          if (!stripRect.width || !rect.width) return;
+          const left = Math.max(6, Math.min(window.innerWidth - 6 - rect.width, stripRect.left + 12));
+          const top = Math.max(6, stripRect.top - rect.height - 8);
+          setFloatSeat((previous) =>
+            previous !== null && Math.abs(previous.left - left) < 0.5 && Math.abs(previous.top - top) < 0.5
+              ? previous
+              : { left: left, top: top },
+          );
+        };
+        seat();
+        window.addEventListener('resize', seat);
+        let observer = null;
+        const shell = barRef.current === null ? null : barRef.current.parentElement;
+        if (shell !== null && typeof ResizeObserver === 'function') {
+          observer = new ResizeObserver(seat);
+          observer.observe(shell);
+          if (shell.parentElement !== null) observer.observe(shell.parentElement);
+        }
+        return () => {
+          window.removeEventListener('resize', seat);
+          if (observer !== null) observer.disconnect();
+        };
+      }, [floatOn, stripHidden, floatPos]);
+
       React.useEffect(
         () => () => {
           window.clearTimeout(closeTimer.current);
@@ -1413,8 +1478,8 @@ window.__ModuleLoader__.load({
         floatDragRef.current = {
           sx: event.clientX,
           sy: event.clientY,
-          left0: floatPos === null ? rect.left : floatPos.left,
-          top0: floatPos === null ? rect.top : floatPos.top,
+          left0: rect.left,
+          top0: rect.top,
           w: rect.width,
           h: rect.height,
         };
@@ -1454,13 +1519,17 @@ window.__ModuleLoader__.load({
       const surfaceTokens = breakdown ? num(breakdown.systemTokens) + num(breakdown.toolsTokens) + num(breakdown.messageTokens) : null;
 
       /* Working rotates Claude Code's spinner verbs; idle uses the strip's own
-         sleeping phrases. A finished turn overrides both for a few seconds. */
+         sleeping phrases. A finished turn overrides both for a few seconds. A
+         custom list replaces the built-in vocabulary in both states: what the
+         reader typed is what the strip should say, idle or working. */
       const statusText =
         done !== null
           ? done.word + ' for ' + turnDuration(done.ms)
-          : working
-            ? WORK_VERBS[phrase % WORK_VERBS.length]
-            : IDLE_PHRASES[phrase % IDLE_PHRASES.length];
+          : phrases.length > 0
+            ? phrases[phrase % phrases.length]
+            : working
+              ? WORK_VERBS[phrase % WORK_VERBS.length]
+              : IDLE_PHRASES[phrase % IDLE_PHRASES.length];
 
       /* Load-bearing: 3.2 / (1 + tps/55) clamped; idle barely drifts.
          Pixel mode keeps the lane above a floor so 4 stepped beads still read
@@ -2190,15 +2259,18 @@ window.__ModuleLoader__.load({
       /* The floating card. Same strip, detached from the composer: portalled for
          the same reason the panel is (inside the dock it would lose to the
          compose box), and dragged by its body. It is a bar, not the panel - the
-         panel stays with the docked line, which has an anchor to hang it from. */
+         panel stays with the docked line, which has an anchor to hang it from.
+         With the line on, its home is the line's above-left corner; with the
+         line off there is nothing to hang from, so it uses the CSS seat. */
+      const floatPlace = floatPos !== null ? floatPos : stripHidden ? null : floatSeat;
       const floatShell = h(
         'div',
         {
           className:
             'dsh-sb-shell dsh-sb-float' +
-            (floatPos === null ? ' sb-float-default' : '') +
+            (floatPlace === null ? ' sb-float-default' : '') +
             (floatDragging ? ' dragging' : ''),
-          style: floatPos === null ? undefined : { left: floatPos.left + 'px', top: floatPos.top + 'px' },
+          style: floatPlace === null ? undefined : { left: floatPlace.left + 'px', top: floatPlace.top + 'px' },
           ref: floatRef,
           title: t('card.drag'),
           onPointerDown: startFloatDrag,
@@ -2252,6 +2324,7 @@ window.__ModuleLoader__.load({
         view: readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]),
         strip: readStored(STORE_STRIP, SHOW, [SHOW, HIDE]),
         float: readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]),
+        phrases: readStored(STORE_PHRASES, ''),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
       };
@@ -2453,6 +2526,17 @@ window.__ModuleLoader__.load({
             ),
           ),
           row(
+            t('settings.phrases'),
+            h('textarea', {
+              className: 'sb-set-textarea',
+              rows: 4,
+              value: prefs.phrases,
+              placeholder: t('phrases.placeholder'),
+              spellCheck: false,
+              onChange: (event) => put(STORE_PHRASES, event.target.value),
+            }),
+          ),
+          row(
             t('settings.panel'),
             h(
               'span',
@@ -2505,6 +2589,7 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_VIEW, VIEW_CARD);
                 writeStored(STORE_STRIP, SHOW);
                 writeStored(STORE_FLOAT, HIDE);
+                writeStored(STORE_PHRASES, '');
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
                 writeStored(STORE_HEIGHT, String(HEIGHT_DEFAULT));
                 commit();
@@ -2617,6 +2702,8 @@ window.__ModuleLoader__.load({
       'strip.title.hide': 'hide the status line; the floating card is switched separately',
       'float.title.show': 'show the floating status card',
       'float.title.hide': 'hide the floating status card',
+      'settings.phrases': 'phrases',
+      'phrases.placeholder': 'one phrase per line, e.g. Cogitating / Jitterbugging',
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
       'size.width': 'w',
@@ -2735,6 +2822,8 @@ window.__ModuleLoader__.load({
       'strip.title.hide': '隐藏状态条；浮动卡片单独开关',
       'float.title.show': '显示浮动的状态卡片',
       'float.title.hide': '隐藏浮动的状态卡片',
+      'settings.phrases': '自定义短语',
+      'phrases.placeholder': '每行一句，随意添加，例如：Cogitating / Jitterbugging',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
       'size.width': '宽',

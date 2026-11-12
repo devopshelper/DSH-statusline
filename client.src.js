@@ -17,6 +17,11 @@ window.__ModuleLoader__.load({
       ReactDOM = null;
     }
 
+    /* Place the floating card before the browser paints. A host that only
+       provides the regular effect (the headless render test does) degrades to
+       the no-op hook rather than failing at load. */
+    const useLayout = typeof React.useLayoutEffect === 'function' ? React.useLayoutEffect : React.useEffect;
+
     /** The portable, attribute-driven status-bar stylesheet, verbatim. */
     const CSS = __SB_CSS__;
 
@@ -351,6 +356,9 @@ window.__ModuleLoader__.load({
       '.dsh-sb-settings .sb-set-swatch.on{border:2px solid var(--dsw-alias-label-primary);transform:scale(1.1)}' +
       '@media (hover:hover){.dsh-sb-settings .sb-set-swatch:hover{transform:scale(1.15)}}' +
       '.dsh-sb-settings .sb-set-swatch:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}' +
+      '.dsh-sb-settings .sb-set-row:has(.sb-set-textarea){align-items:flex-start}' +
+      '.dsh-sb-settings .sb-set-textarea{flex:1 1 320px;min-width:0;min-height:58px;padding:7px 9px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:transparent;color:inherit;font:inherit;resize:vertical}' +
+      '.dsh-sb-settings .sb-set-textarea:focus{outline:none;border-color:var(--dsw-alias-label-tertiary)}' +
       '.dsh-sb-settings .sb-set-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2)}' +
       '.dsh-sb-settings .sb-set-hint{color:var(--dsw-alias-label-tertiary);font-size:11px}';
 
@@ -506,6 +514,7 @@ window.__ModuleLoader__.load({
     const STORE_COLLAPSE = 'dsh.statusbar.collapse';
     const STORE_STRIP = 'dsh.statusbar.strip';
     const STORE_FLOAT = 'dsh.statusbar.float';
+    const STORE_PHRASES = 'dsh.statusbar.phrases';
     const STORE_FLOATPOS = 'dsh.statusbar.floatpos';
     const STORE_WIDTH = 'dsh.statusbar.width';
     const STORE_HEIGHT = 'dsh.statusbar.height';
@@ -651,6 +660,19 @@ window.__ModuleLoader__.load({
       } catch (error) {
         return null;
       }
+    }
+
+    /* The phrase editor stores one phrase per line, raw. Parsing lives here so
+       the strip and the settings page agree on trimming and empty lines. */
+    function parsePhrases(raw) {
+      if (typeof raw !== 'string') return [];
+      return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    }
+    function readPhrases() {
+      return parsePhrases(readStored(STORE_PHRASES, ''));
     }
 
     /** Reduced-motion is the sane default for pixel mode. */
@@ -966,6 +988,13 @@ window.__ModuleLoader__.load({
          time; after that it is viewport pixels and persisted. */
       const [floatPos, setFloatPos] = React.useState(readFloatBox);
       const [floatDragging, setFloatDragging] = React.useState(false);
+      /* The floating card's home: the docked bar's above-left corner, the same
+         seat the panel's `above` anchor uses. A drag replaces it, and a
+         double-click returns to it. Null while there is no docked bar, so the
+         CSS bottom-centre seat applies. */
+      const [floatSeat, setFloatSeat] = React.useState(null);
+      /* User phrases, one per line. Empty means the built-in vocabulary. */
+      const [phrases, setPhrases] = React.useState(readPhrases);
       const stripHidden = strip === HIDE;
       const working = realWorking || demo;
 
@@ -996,6 +1025,7 @@ window.__ModuleLoader__.load({
           setCollapsed(readStored(STORE_COLLAPSE, 'off') === 'on');
           setStrip(readStored(STORE_STRIP, SHOW, [SHOW, HIDE]));
           setFloatOn(readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]) === SHOW);
+          setPhrases(readPhrases());
         };
         window.addEventListener(SETTINGS_EVENT, sync);
         return () => window.removeEventListener(SETTINGS_EVENT, sync);
@@ -1258,6 +1288,41 @@ window.__ModuleLoader__.load({
         };
       }, [floatDragging, pixel]);
 
+      /* Seat the floating card above the docked bar and keep it there until it
+         is dragged. Measured before paint, then followed on resize and on the
+         dock growing: the composer pushes the bar down as it is typed into. */
+      useLayout(() => {
+        if (!floatOn || stripHidden || floatPos !== null) return () => {};
+        const seat = () => {
+          const bar = barRef.current;
+          const el = floatRef.current;
+          if (bar === null || el === null) return;
+          const stripRect = bar.getBoundingClientRect();
+          const rect = el.getBoundingClientRect();
+          if (!stripRect.width || !rect.width) return;
+          const left = Math.max(6, Math.min(window.innerWidth - 6 - rect.width, stripRect.left + 12));
+          const top = Math.max(6, stripRect.top - rect.height - 8);
+          setFloatSeat((previous) =>
+            previous !== null && Math.abs(previous.left - left) < 0.5 && Math.abs(previous.top - top) < 0.5
+              ? previous
+              : { left: left, top: top },
+          );
+        };
+        seat();
+        window.addEventListener('resize', seat);
+        let observer = null;
+        const shell = barRef.current === null ? null : barRef.current.parentElement;
+        if (shell !== null && typeof ResizeObserver === 'function') {
+          observer = new ResizeObserver(seat);
+          observer.observe(shell);
+          if (shell.parentElement !== null) observer.observe(shell.parentElement);
+        }
+        return () => {
+          window.removeEventListener('resize', seat);
+          if (observer !== null) observer.disconnect();
+        };
+      }, [floatOn, stripHidden, floatPos]);
+
       React.useEffect(
         () => () => {
           window.clearTimeout(closeTimer.current);
@@ -1413,8 +1478,8 @@ window.__ModuleLoader__.load({
         floatDragRef.current = {
           sx: event.clientX,
           sy: event.clientY,
-          left0: floatPos === null ? rect.left : floatPos.left,
-          top0: floatPos === null ? rect.top : floatPos.top,
+          left0: rect.left,
+          top0: rect.top,
           w: rect.width,
           h: rect.height,
         };
@@ -1454,13 +1519,17 @@ window.__ModuleLoader__.load({
       const surfaceTokens = breakdown ? num(breakdown.systemTokens) + num(breakdown.toolsTokens) + num(breakdown.messageTokens) : null;
 
       /* Working rotates Claude Code's spinner verbs; idle uses the strip's own
-         sleeping phrases. A finished turn overrides both for a few seconds. */
+         sleeping phrases. A finished turn overrides both for a few seconds. A
+         custom list replaces the built-in vocabulary in both states: what the
+         reader typed is what the strip should say, idle or working. */
       const statusText =
         done !== null
           ? done.word + ' for ' + turnDuration(done.ms)
-          : working
-            ? WORK_VERBS[phrase % WORK_VERBS.length]
-            : IDLE_PHRASES[phrase % IDLE_PHRASES.length];
+          : phrases.length > 0
+            ? phrases[phrase % phrases.length]
+            : working
+              ? WORK_VERBS[phrase % WORK_VERBS.length]
+              : IDLE_PHRASES[phrase % IDLE_PHRASES.length];
 
       /* Load-bearing: 3.2 / (1 + tps/55) clamped; idle barely drifts.
          Pixel mode keeps the lane above a floor so 4 stepped beads still read
@@ -2190,15 +2259,18 @@ window.__ModuleLoader__.load({
       /* The floating card. Same strip, detached from the composer: portalled for
          the same reason the panel is (inside the dock it would lose to the
          compose box), and dragged by its body. It is a bar, not the panel - the
-         panel stays with the docked line, which has an anchor to hang it from. */
+         panel stays with the docked line, which has an anchor to hang it from.
+         With the line on, its home is the line's above-left corner; with the
+         line off there is nothing to hang from, so it uses the CSS seat. */
+      const floatPlace = floatPos !== null ? floatPos : stripHidden ? null : floatSeat;
       const floatShell = h(
         'div',
         {
           className:
             'dsh-sb-shell dsh-sb-float' +
-            (floatPos === null ? ' sb-float-default' : '') +
+            (floatPlace === null ? ' sb-float-default' : '') +
             (floatDragging ? ' dragging' : ''),
-          style: floatPos === null ? undefined : { left: floatPos.left + 'px', top: floatPos.top + 'px' },
+          style: floatPlace === null ? undefined : { left: floatPlace.left + 'px', top: floatPlace.top + 'px' },
           ref: floatRef,
           title: t('card.drag'),
           onPointerDown: startFloatDrag,
@@ -2252,6 +2324,7 @@ window.__ModuleLoader__.load({
         view: readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]),
         strip: readStored(STORE_STRIP, SHOW, [SHOW, HIDE]),
         float: readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]),
+        phrases: readStored(STORE_PHRASES, ''),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
       };
@@ -2453,6 +2526,17 @@ window.__ModuleLoader__.load({
             ),
           ),
           row(
+            t('settings.phrases'),
+            h('textarea', {
+              className: 'sb-set-textarea',
+              rows: 4,
+              value: prefs.phrases,
+              placeholder: t('phrases.placeholder'),
+              spellCheck: false,
+              onChange: (event) => put(STORE_PHRASES, event.target.value),
+            }),
+          ),
+          row(
             t('settings.panel'),
             h(
               'span',
@@ -2505,6 +2589,7 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_VIEW, VIEW_CARD);
                 writeStored(STORE_STRIP, SHOW);
                 writeStored(STORE_FLOAT, HIDE);
+                writeStored(STORE_PHRASES, '');
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
                 writeStored(STORE_HEIGHT, String(HEIGHT_DEFAULT));
                 commit();
@@ -2617,6 +2702,8 @@ window.__ModuleLoader__.load({
       'strip.title.hide': 'hide the status line; the floating card is switched separately',
       'float.title.show': 'show the floating status card',
       'float.title.hide': 'hide the floating status card',
+      'settings.phrases': 'phrases',
+      'phrases.placeholder': 'one phrase per line, e.g. Cogitating / Jitterbugging',
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
       'size.width': 'w',
@@ -2735,6 +2822,8 @@ window.__ModuleLoader__.load({
       'strip.title.hide': '隐藏状态条；浮动卡片单独开关',
       'float.title.show': '显示浮动的状态卡片',
       'float.title.hide': '隐藏浮动的状态卡片',
+      'settings.phrases': '自定义短语',
+      'phrases.placeholder': '每行一句，随意添加，例如：Cogitating / Jitterbugging',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
       'size.width': '宽',
