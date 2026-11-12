@@ -98,7 +98,7 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | palette swatch | repaints every glow (four custom properties carry the whole theme) |
 | `pixel` / `pixel on` | low-frame motion for RDP / software rendering; latched in the accent when on |
 | `fx on` / `fx off` | whole-surface effects, latched in the accent while they are running; state stays identical either way |
-| `beads` / `bpm` / `water` / `whale` / `traffic` | cycles the flow lane: travelling beads, a heartbeat trace, scrolling water, a diving whale, or two lanes of traffic |
+| `beads` / `bpm` / `water` / `term` / `traffic` | cycles the flow lane: travelling beads, a heartbeat trace, scrolling water, a typing terminal line, or highway traffic |
 | `demo` | rehearses the working state without sending a prompt |
 | `above` / `corner` | where the card hangs off the strip (see below) |
 | `w − / +` | widens or narrows the strip: 900 → 980 → 1120 → 1280 → 1500 → full |
@@ -191,28 +191,35 @@ The lane beside the status text has five skins, cycled from one button in the ca
 | `beads` (default) | 8 round nodes, two offset rows | `translateX` with staggered delays | nodes dim and barely drift |
 | `bpm` | one `polyline` on a 128×17 baseline | a 9%-of-path dash swept by `stroke-dashoffset` | the trace is hidden, leaving a flatline |
 | `water` | two filled wave silhouettes | both layers scroll one wavelength per cycle; the back runs 40% slower and half a cycle out of phase | amplitude drops to 40% via `scaleY`, the front loses its glow, the swell settles rather than stopping |
-| `whale` | the same water, plus a whale between the two swells | one crossing per cycle, and one dive per crossing, at a little under the water's speed | the whale floats low and breathes instead of diving |
-| `traffic` | two lanes and a dashed divider, seen from above | three cars, upper lane right, lower lane left, each with its own factor and a negative delay | the road empties out and the remaining cars crawl |
+| `terminal` | a prompt, a command line and a block cursor | typed character by character at the token rate, cursor blinking | the same line, typed slowly, dimmer |
+| `traffic` | two lanes and a dashed divider, seen from above | one car per ~22 tok/s: more cars **and** a faster road as the rate climbs | a single car with the road to itself |
 
-All five read the same tok/s formula (`clamp(3.2 / (1 + tps / 55), 0.5, 3.2)`), so whichever skin is on, the lane's speed means the same thing: how fast tokens are landing. The `bpm` sweep rate *is* the pulse rate, the `water` scroll is a shade slower than the beads (`× 1.15`, floored at 1 s per wavelength) because at bead speed the crests strobe, and `whale` and `traffic` run slower still — a whale moving at bead speed reads as a bug, not as a swimmer.
+All five read the same tok/s formula (`clamp(3.2 / (1 + tps / 55), 0.5, 3.2)`), so whichever skin is on, the lane's speed means the same thing: how fast tokens are landing. The `bpm` sweep rate *is* the pulse rate, the `water` scroll is a shade slower than the beads (`× 1.15`, floored at 1 s per wavelength) because at bead speed the crests strobe, and `terminal` and `traffic` are slower still — a typewriter running at bead speed is unreadable.
 
-### How the whale dives
+### The terminal
 
-The whale is a `<g>` between the back swell and the front one, in the same SVG:
+A prompt, a command, a block cursor — the skin a status line was always going to end up with.
 
 ```text
-back swell  →  whale  →  front swell
+$ dsh status --watch█
 ```
 
-That ordering *is* the dive. The front fill is opaque and covers the lower half of the lane, so an animated `translateY` on the whale simply carries it behind the water and back out again — no mask, no clipping path, no second copy of the wave. Swim and dive are separate transforms on nested groups (`sb-whale-swim` and `sb-whale-dive`), so neither has to know the other's numbers: the swim is a straight crossing with an opacity fade at each edge, which is also what hides the wrap. The spout is three puffs on the same clock, visible only around the breach, so spout and breach cannot drift apart. The tail wags on a faster independent loop.
-
-Idle swaps the dive keyframes for a bob (`sb-whale-bob`) and lowers the whale, because the waves settle to 40% amplitude and a diving whale in flat water would look like it fell through the floor.
+The typewriter is a `clip-path` reveal animated with `steps(N)`, where **N is the character count of the string**, so nothing is laid out per frame and the text stays real text in the DOM. `TERM_LINE` and the step count live beside each other in the source and the render test asserts they still agree, because a mismatch is invisible at runtime (the last characters would simply clip in mid-letter). Speed is the token rate: a busy turn types the line in 1.2 s, idle takes 7 s. The cursor blinks on its own 1.05 s loop and its glow follows the palette.
 
 ### The highway
 
-Static road, moving cars. The dashes are built once from `ROAD_DASHES`; the motion is three `<g class="sb-car-run">` groups, one per car, each with its own duration factor and a negative `animation-delay` so they never travel in convoy. The lower-lane car is mirrored around its own centre (`translate(25 0) scale(-1 1)`) so its headlight is its leading edge rather than its tail.
+Throughput, drawn as a road. Both lanes run left to right; the number of cars **and** their speed both come from the same number, which is the point of the skin:
 
-Lane offset travels as an SVG `transform` attribute on the car group and motion as a CSS `transform` on a child: a CSS transform on the same element would replace the attribute and drop the lane.
+| token rate | cars |
+|---|---|
+| idle | 1 |
+| ~25 tok/s | 2 |
+| ~70 tok/s | 4 |
+| very fast | 5 (the slot ceiling) |
+
+Cars are spaced by fixed per-slot delays (slot *i* starts *i*/5 of a cycle after slot 0), so the gaps stay even and every car keeps its own phase when the fleet grows. Growing is immediate — a new car enters from the left, off-canvas. Shrinking is not: a car being retired finishes its crossing and is dropped on its next loop, off-canvas, instead of vanishing mid-lane. That is what `retireCar` and `liveCars` are for.
+
+Lane offset rides an SVG `transform` attribute on the car group and motion rides a CSS `transform` on a child group: a CSS transform on the same element would replace the attribute and drop the car out of its lane.
 
 ## Layout rules that are load-bearing
 
