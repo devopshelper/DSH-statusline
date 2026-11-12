@@ -119,7 +119,7 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | drag the floating card | moves it anywhere; double-click sends it back to the default seat |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.float"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.phrases"]`, `["dsh.statusbar.context"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.float"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.phrases"]`, `["dsh.statusbar.context"]`, `["dsh.statusbar.harness"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
 ## The settings page
 
@@ -128,7 +128,7 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), panel view, the strip presentation (line / floating card), card position reset, the phrase list, the context gauge, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
+| edits | palette (12), panel view, the strip presentation (line / floating card), card position reset, the harness bar, the phrase list, the context gauge, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
 | preview | a real strip, not a mock: same classes, same attributes, same theme variables, and the same lane/gauge builders the strip uses, so the preview follows the lane, phrase, context and tok/s choices as you click |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
@@ -180,10 +180,11 @@ The same strip can sit in two places, chosen in Settings → Plugins:
 |---|---|---|
 | **status line** | the strip sits in the dock under the composer and owns the hover panel | nothing is docked; the floating card (if on) is the only copy |
 | **status card** | the strip floats over the conversation, draggable by its body | no floating bar |
+| **harness bar** | the harness's own status line is kept, under the strip | it is hidden, since the strip reports the same figures |
 
-They are alternatives, not layers: choosing one switches the other off, so the same line is never drawn twice. Both off restores the harness's own pills. The floating copy is a bar, not a second panel.
+The first two are alternatives, not layers: choosing one switches the other off, so the same line is never drawn twice. The third is independent of both — it decides whether the harness's own line exists beside ours, and it is the only thing that decides. The floating copy is a bar, not a second panel.
 
-While either presentation is on, the harness's own pills are replaced. The line does it with the shell's marker class; the floating-only mode leaves a hidden marker in the dock so the same rule still applies. The hiding rule is structural and gated on our own marker class, so it can only hide siblings of the shell that are not the shell and not the context ring:
+**harness bar** works through one marker class on the shell, and the hiding rule is the only consumer of it. The line puts the marker on directly; the floating-only mode leaves a hidden marker in the dock so the same rule still applies. The rule is structural, so it can only hide siblings of the shell that are not the shell and not the context ring:
 
 ```css
 :is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default) > *
@@ -192,7 +193,7 @@ While either presentation is on, the harness's own pills are replaced. The line 
   :not(:has(svg[viewBox="0 0 14 14"])) { display: none }
 ```
 
-With both off there is no marker in the dock, so nothing is hidden and the shipped pills are back. The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching; nothing else is ever hidden.
+With **harness bar** on, or with every presentation off, there is no marker in the dock, so nothing is hidden. The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching; nothing else is ever hidden.
 
 ### The floating card
 

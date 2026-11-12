@@ -269,9 +269,9 @@ window.__ModuleLoader__.load({
          purpose, which is the whole point of the switch. */
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card *{animation:none!important;transition:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card{box-shadow:0 6px 14px rgba(0,0,0,.95)}' +
-      /* ---- replacing the harness's own pills --------------------------------
-         While the docked bar is on, the shipped pills line would repeat it, so
-         the shell carries the marker and the rule hides its dock siblings.
+      /* ---- hiding the harness's own pills -----------------------------------
+         Opt-out, not automatic: the `harness bar` switch in Settings puts the
+         marker on or off, and the rule below is the only consumer of it.
          Structural, and gated on our own marker class. Three exclusions, and the
          first two are not the same test: `:not(.dsh-sb-shell)` keeps the shell
          itself, `:not(:has(.dsh-sb-shell))` keeps whatever wrapper holds it.
@@ -550,6 +550,7 @@ window.__ModuleLoader__.load({
     const STORE_STRIP = 'dsh.statusbar.strip';
     const STORE_FLOAT = 'dsh.statusbar.float';
     const STORE_CONTEXT = 'dsh.statusbar.context';
+    const STORE_HARNESS = 'dsh.statusbar.harness';
     const STORE_PHRASES = 'dsh.statusbar.phrases';
     const STORE_FLOATPOS = 'dsh.statusbar.floatpos';
     const STORE_WIDTH = 'dsh.statusbar.width';
@@ -1242,6 +1243,12 @@ window.__ModuleLoader__.load({
       const [contextOn, setContextOn] = React.useState(() =>
         readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]) === SHOW,
       );
+      /* The harness's own status line, beside ours. Hidden by default, because
+         the strip reports the same figures; switched on it comes back untouched
+         and the strip sits above it. */
+      const [harnessBar, setHarnessBar] = React.useState(
+        () => readStored(STORE_HARNESS, HIDE, [SHOW, HIDE]) === SHOW,
+      );
       const stripHidden = strip === HIDE;
       const working = realWorking || demo;
 
@@ -1275,6 +1282,7 @@ window.__ModuleLoader__.load({
           setFloatOn(modes.float === SHOW);
           setPhrases(readPhrases());
           setContextOn(readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]) === SHOW);
+          setHarnessBar(readStored(STORE_HARNESS, HIDE, [SHOW, HIDE]) === SHOW);
           setFloatPos(readFloatBox());
         };
         window.addEventListener(SETTINGS_EVENT, sync);
@@ -2443,22 +2451,18 @@ window.__ModuleLoader__.load({
       /* With the line off there is nothing to dock; the floating card carries
          the state on its own. With both off the plugin adds nothing to the
          composer, so the harness's own pills are back in charge. */
+      /* The marker the stylesheet keys on: present only while the harness's own
+         line is switched off, so the switch is the single thing that decides. */
+      const shellClass = 'dsh-sb-shell' + (harnessBar ? '' : ' sb-hide-default');
+
       if (stripHidden) {
         if (floatLayer === null) return null;
-        /* With no docked shell the harness's own pills would come back beside
-           the floating copy; a hidden marker keeps the same replacement rule
-           working while only the card is on. */
-        return h('div', { className: 'dsh-sb-shell sb-hide-default', style: { display: 'none' } }, floatLayer);
+        /* With no docked shell an extra marker is what keeps the harness's line
+           hidden while only the floating card is on. */
+        return harnessBar ? floatLayer : h('div', { className: shellClass, style: { display: 'none' } }, floatLayer);
       }
 
-      /* While the line is on it replaces the harness's own pills instead of
-         duplicating them; the marker on the shell is what the stylesheet keys on. */
-      return h(
-        'div',
-        { className: 'dsh-sb-shell sb-hide-default' },
-        makeStrip(true, barRef),
-        floatLayer,
-      );
+      return h('div', { className: shellClass }, makeStrip(true, barRef), floatLayer);
     }
 
     /* ------------------------------------------------------------------ *
@@ -2483,6 +2487,7 @@ window.__ModuleLoader__.load({
         strip: modes.strip,
         float: modes.float,
         context: readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]),
+        harness: readStored(STORE_HARNESS, HIDE, [SHOW, HIDE]),
         phrases: readStored(STORE_PHRASES, ''),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
@@ -2721,6 +2726,15 @@ window.__ModuleLoader__.load({
               )
             : null,
           row(
+            t('settings.harness'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(t('common.on'), prefs.harness === SHOW, () => put(STORE_HARNESS, SHOW), t('harness.title.show')),
+              choice(t('common.off'), prefs.harness === HIDE, () => put(STORE_HARNESS, HIDE), t('harness.title.hide')),
+            ),
+          ),
+          row(
             t('settings.context'),
             h(
               'span',
@@ -2794,6 +2808,7 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_STRIP, SHOW);
                 writeStored(STORE_FLOAT, HIDE);
                 writeStored(STORE_CONTEXT, HIDE);
+                writeStored(STORE_HARNESS, HIDE);
                 writeStored(STORE_FLOATPOS, 'null');
                 writeStored(STORE_PHRASES, '');
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
@@ -2911,6 +2926,9 @@ window.__ModuleLoader__.load({
       'float.title.hide': 'hide the floating status card',
       'settings.phrases': 'phrases',
       'phrases.placeholder': 'one phrase per line, e.g. Cogitating / Jitterbugging',
+      'settings.harness': 'harness bar',
+      'harness.title.show': "show the harness's own status line beside the strip",
+      'harness.title.hide': "hide the harness's own status line",
       'settings.context': 'context gauge',
       'context.title.show': 'show the context window gauge on the strip',
       'context.title.hide': 'hide the context window gauge',
@@ -3039,6 +3057,9 @@ window.__ModuleLoader__.load({
       'float.title.hide': '隐藏浮动的状态卡片',
       'settings.phrases': '自定义短语',
       'phrases.placeholder': '每行一句，随意添加，例如：Cogitating / Jitterbugging',
+      'settings.harness': 'Harness 状态栏',
+      'harness.title.show': '在状态条旁边显示 Harness 自带的状态栏',
+      'harness.title.hide': '隐藏 Harness 自带的状态栏',
       'settings.context': '上下文仪表',
       'context.title.show': '在状态条上显示上下文窗口仪表',
       'context.title.hide': '隐藏上下文窗口仪表',
