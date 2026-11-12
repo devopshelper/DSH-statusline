@@ -92,7 +92,7 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 | palette swatch | repaints every glow (four custom properties carry the whole theme) |
 | `pixel` | low-frame motion for RDP / software rendering |
 | `fx off` | kills whole-surface effects but keeps state identical |
-| `beads` / `bpm` | switches the flow lane between travelling beads and a flat heartbeat trace |
+| `beads` / `bpm` / `water` | cycles the flow lane between travelling beads, a heartbeat trace and scrolling water |
 | `demo` | rehearses the working state without sending a prompt |
 | `above` / `corner` | where the card hangs off the strip (see below) |
 | drag the card header | moves the card anywhere; double-click the header to put it back |
@@ -143,18 +143,20 @@ The lane uses the idle-throughput fallback (`55 tok/s`, i.e. a 1.6 s loop) becau
 
 ## The flow lane
 
-The lane beside the status text has two skins, switched in the card and remembered:
+The lane beside the status text has three skins, cycled from one button in the card and remembered:
 
-| | `beads` (default) | `bpm` |
-|---|---|---|
-| shape | 8 round nodes, two offset rows | one `polyline` on a 128×17 baseline |
-| working motion | `translateX` with staggered delays | a 9%-of-path dash swept by `stroke-dashoffset` |
-| idle | nodes dim and barely drift | the trace is hidden — only the baseline is left, i.e. a flatline |
-| cost | 8 nodes × 2 `box-shadow` layers | one stroke, no shadows outside smooth mode |
+| | `beads` (default) | `bpm` | `water` |
+|---|---|---|---|
+| shape | 8 round nodes, two offset rows | one `polyline` on a 128×17 baseline | two filled wave silhouettes, one 128×17 cell |
+| working motion | `translateX` with staggered delays | a 9%-of-path dash swept by `stroke-dashoffset` | both layers scroll one wavelength per cycle; the back runs 40% slower and half a cycle out of phase |
+| idle | nodes dim and barely drift | the trace is hidden — only the baseline is left, i.e. a flatline | amplitude drops to 40% via `scaleY`, the front loses its glow, the swell slows to 9 s and settles rather than stops |
+| cost | 8 nodes × 2 `box-shadow` layers | one stroke, no shadows outside smooth mode | two filled paths, one `drop-shadow` on the front |
 
-Both read `--sb-flow-dur`, which is the tok/s formula (`clamp(3.2 / (1 + tps / 55), 0.5, 3.2)`), so in `bpm` the sweep rate *is* the pulse rate and a fast turn visibly races. The path is generated once at module load by `ECG_PATH` — one 32-unit P-QRS-T complex repeated four times — rather than hand-written coordinates.
+All three read the same tok/s formula (`clamp(3.2 / (1 + tps / 55), 0.5, 3.2)`), so whichever skin is on, the lane's speed means the same thing. The `bpm` sweep rate *is* the pulse rate and a fast turn visibly races. The `water` scroll is deliberately a shade slower (`× 1.15`, floored at 1 s per wavelength) because at bead speed the crests strobe instead of rolling.
 
-`stroke-dasharray: 9 100` with `pathLength="100"` normalises the dash to 9% of the path regardless of its real length; the keyframe shifts `stroke-dashoffset` by `-109` (dash + gap) so the loop is seamless.
+The `bpm` path is generated once at module load by `ECG_PATH` — one 32-unit P-QRS-T complex repeated four times — rather than hand-written coordinates. `stroke-dasharray: 9 100` with `pathLength="100"` normalises the dash to 9% of the path regardless of its real length; the keyframe shifts `stroke-dashoffset` by `-109` (dash + gap) so the loop is seamless.
+
+The `water` path is built the same way (`WAVE_PATH`) and has three seam-critical properties, all spelled out beside it: each hump leaves and enters with the same tangent, so periods tile without a kink; the scroll travels exactly one period (64 units), so the loop lands on an identical frame instead of jumping; and the strip is drawn from `-64` to `320` instead of `0` to `256`, i.e. with a whole period of run-up off-canvas on the left. That last one is not padding: the water travels rightward like the beads and the ECG pulse do, and a rightward scroll without the overhang would expose a gap at the leading edge once per cycle. Amplitude is a `scaleY` on the shared group with `transform-box: fill-box`, anchored to the bottom, which is why going idle is a swell settling rather than a swap between two drawings.
 
 ## Layout rules that are load-bearing
 
@@ -190,6 +192,7 @@ Toggle it in the card (`pixel`). It persists in `localStorage["dsh.statusbar.pix
 | phrase halo / splash / hover filter | on | off |
 | flow duration floor | 0.5 s | 0.9 s, so four stepped beads still read as flow |
 | `bpm` trace glow | `drop-shadow` on the sweep | filter removed |
+| `water` scroll | continuous, two layers | `steps(8)` per wavelength, front glow removed |
 
 The toggles compose: `pixel` reduces *how* it moves, `fx off` (lite) removes the whole-surface effects entirely, and the lane skin is orthogonal to both.
 

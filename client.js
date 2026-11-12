@@ -72,6 +72,26 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-ecg-trace{filter:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-ecg-trace{filter:none}' +
       '@keyframes sb-ecg{from{stroke-dashoffset:0}to{stroke-dashoffset:-109}}' +
+      /* ---- water ------------------------------------------------------------
+         Two filled silhouettes in the same 128x17 cell: a dim back swell and the
+         accent front, each scrolling exactly one wavelength per cycle so the
+         loop has no seam. The front leads; the back runs 40% slower with a half
+         cycle of offset, which is what makes it read as depth rather than two
+         identical stripes.
+
+         Amplitude is a scaleY on the shared group, anchored to the bottom, so
+         going idle is a swell settling under the strip instead of a jump between
+         two drawings. Pixel mode steps the scroll like everything else. */
+      '.dsh-sb-shell [data-sb] .sb-wave{position:relative;display:inline-block;width:var(--sb-flow-w);height:var(--sb-flow-h);overflow:hidden;vertical-align:middle}' +
+      '.dsh-sb-shell [data-sb] .sb-wave svg{display:block;width:100%;height:100%}' +
+      '.dsh-sb-shell [data-sb] .sb-wave .sb-wave-amp{transform-box:fill-box;transform-origin:50% 100%;transition:transform .6s ease}' +
+      '.dsh-sb-shell [data-sb] .sb-wave .sb-wave-scroll{animation:sb-wave-scroll var(--sb-wave-dur,3s) linear infinite}' +
+      '.dsh-sb-shell [data-sb] .sb-wave .sb-wave-front{fill:var(--sb-accent);opacity:.9;filter:drop-shadow(0 0 4px rgba(var(--sb-glow),.7))}' +
+      '.dsh-sb-shell [data-sb] .sb-wave .sb-wave-back{animation-duration:calc(var(--sb-wave-dur,3s) * 1.4);animation-delay:calc(var(--sb-wave-dur,3s) * -0.5);opacity:.4}' +
+      '.dsh-sb-shell [data-sb] .sb-wave .sb-wave-back path{fill:var(--sb-accent2)}' +
+      '.dsh-sb-shell [data-sb] .sb-wave.idle .sb-wave-amp{transform:scaleY(.4)}' +
+      '.dsh-sb-shell [data-sb] .sb-wave.idle .sb-wave-front{opacity:.55;filter:none}' +
+      '@keyframes sb-wave-scroll{from{transform:translateX(0)}to{transform:translateX(64px)}}' +
       '.dsh-sb-shell [data-sb] .sb-tools{flex-wrap:wrap;gap:4px}' +
       /* Six buttons have to fit 278px of card. Tighten the padding and the gap
          rather than let the row wrap into a second line nobody expects. */
@@ -105,6 +125,9 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flow i{box-shadow:none!important;border-radius:1px;width:5px;height:5px;animation-timing-function:steps(8,end)!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flow i:nth-child(even){background:var(--sb-accent2);border-radius:1px}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flow-gear{text-shadow:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-wave .sb-wave-scroll{animation-timing-function:steps(8,end)!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-wave .sb-wave-front{filter:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-lite] .sb-wave .sb-wave-front{filter:none}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flower,' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-dots i,' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-zzz i{animation-timing-function:steps(4,end)!important;text-shadow:none!important}' +
@@ -202,6 +225,37 @@ window.__ModuleLoader__.load({
       }
       return points.join(' ');
     })();
+    /* One wave on a 20-unit-tall box: two mirrored quadratic humps make a
+       64-unit period. Three things matter and all are load-bearing:
+
+       - each hump leaves and enters with the same tangent (control offset
+         `16, -9` in, `16, -9` out), so tiling the period leaves no kink;
+       - the scroll travels exactly one period (64 units), so the loop lands
+         back on an identical frame instead of jumping;
+       - the strip is drawn from -64 to 320 rather than 0 to 256, i.e. with a
+         whole period of run-up off-canvas on the left and to spare on the
+         right. The water travels rightward like the beads and the pulse do, and
+         without that overhang a rightward scroll would expose a gap at the
+         leading edge.
+
+       The fill closes down to y=22 and back so the silhouette reads as water
+       rather than a line. */
+    const WAVE_PATH = (function () {
+      const period = 64;
+      const from = -period;
+      const to = 320;
+      const segments = ['M' + from + ' 12'];
+      for (let x = from; x < to; x += period) {
+        segments.push('q' + period / 4 + ' -9 ' + period / 2 + ' 0');
+        segments.push('q' + period / 4 + ' 9 ' + period / 2 + ' 0');
+      }
+      segments.push('L' + to + ' 22 L' + from + ' 22 Z');
+      return segments.join(' ');
+    })();
+    /* Lane speeds. The wave uses the same tok/s formula as the beads; idle is a
+       slow swell rather than a crawl, because a wave that stops reads as a bug. */
+    const WAVE_IDLE_SECONDS = 9;
+
     const IDLE_PHRASES = [
       'waiting to cogitate',
       'dozing in latent space',
@@ -255,10 +309,38 @@ window.__ModuleLoader__.load({
     const CARD_W = 300;
 
     /* Flow lanes. `beads` is the original travelling-particle line; `ecg` is a
-       flat heartbeat trace with one bright pulse sweeping it. Both read the same
-       --sb-flow-dur, so both answer to the live token rate. */
+       flat heartbeat trace with one bright pulse sweeping it; `wave` is two
+       layered water silhouettes scrolling by one wavelength per cycle. All three
+       read the same live token rate, so the lane's speed always means the same
+       thing whichever skin is on. */
     const FLOW_BEADS = 'beads';
     const FLOW_ECG = 'ecg';
+    const FLOW_WAVE = 'wave';
+    const FLOW_ORDER = [FLOW_BEADS, FLOW_ECG, FLOW_WAVE];
+
+    /* Lane copy, keyed by the lane itself: one table instead of a ternary chain
+       in three places (title, button label, next-lane tooltip). */
+    const FLOW_TEXT = {
+      [FLOW_BEADS]: {
+        busy: 'flow.busy',
+        idle: 'flow.idle',
+        label: 'flowmode.beads',
+        title: 'flowmode.title.beads',
+      },
+      [FLOW_ECG]: {
+        busy: 'flow.ecg.busy',
+        idle: 'flow.ecg.idle',
+        label: 'flowmode.ecg',
+        title: 'flowmode.title.ecg',
+      },
+      [FLOW_WAVE]: {
+        busy: 'flow.wave.busy',
+        idle: 'flow.wave.idle',
+        label: 'flowmode.wave',
+        title: 'flowmode.title.wave',
+      },
+    };
+    const flowText = (mode) => FLOW_TEXT[mode] || FLOW_TEXT[FLOW_BEADS];
 
     /** Smooth mode draws 8 beads; pixel mode halves the nodes it has to paint. */
     const BEADS_SMOOTH = 8;
@@ -431,9 +513,7 @@ window.__ModuleLoader__.load({
       const [theme, setTheme] = React.useState(() => readStored(STORE_THEME, 'deepseek', THEME_IDS));
       const [lite, setLite] = React.useState(() => readStored(STORE_FX, 'off') === 'on');
       const [pixel, setPixel] = React.useState(() => readStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off') === 'on');
-      const [flowMode, setFlowMode] = React.useState(() =>
-        readStored(STORE_FLOW, FLOW_BEADS) === FLOW_ECG ? FLOW_ECG : FLOW_BEADS,
-      );
+      const [flowMode, setFlowMode] = React.useState(() => readStored(STORE_FLOW, FLOW_BEADS, FLOW_ORDER));
       const [hover, setHover] = React.useState(false);
       const [cardOpen, setCardOpen] = React.useState(false);
       const [pinned, setPinned] = React.useState(false);
@@ -640,7 +720,7 @@ window.__ModuleLoader__.load({
       };
       const toggleFlowMode = () => {
         setFlowMode((previous) => {
-          const next = previous === FLOW_ECG ? FLOW_BEADS : FLOW_ECG;
+          const next = FLOW_ORDER[(FLOW_ORDER.indexOf(previous) + 1) % FLOW_ORDER.length];
           writeStored(STORE_FLOW, next);
           return next;
         });
@@ -780,13 +860,77 @@ window.__ModuleLoader__.load({
       const tps = working ? (rate > 0 ? rate : 55) : 0;
       const smoothFlow = working ? Math.max(0.5, Math.min(3.2, 3.2 / (1 + tps / 55))) : 10;
       const flowSeconds = pixel ? Math.max(0.9, smoothFlow) : smoothFlow;
+      /* The wave reads best a shade slower than the beads: one wavelength taking
+         the same time as a bead takes to cross makes the water look hurried. The
+         floor matters at very high rates - below about a second per wavelength
+         the crests strobe instead of rolling. */
+      const waveSeconds = working ? Math.max(1, Math.min(2.6, flowSeconds * 1.15)) : WAVE_IDLE_SECONDS;
 
       /* One label for every place the state is spoken: never claim a turn is
          running when it is only a rehearsal. */
       const stateLabel = demo ? t('state.demo') : working ? t('state.working') : t('state.idle');
-      const flowTitle = working
-        ? t(flowMode === FLOW_ECG ? 'flow.ecg.busy' : 'flow.busy') + (rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '')
-        : t(flowMode === FLOW_ECG ? 'flow.ecg.idle' : 'flow.idle');
+      const flowCopy = flowText(flowMode);
+      const flowTitle =
+        t(working ? flowCopy.busy : flowCopy.idle) +
+        (working && rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '');
+
+      /* The lane itself. Three skins, one cell: the strip must not reshuffle
+         when the reader cycles them, so every skin is the same 128x17 box. */
+      const lane =
+        flowMode === FLOW_ECG
+          ? h(
+              'span',
+              {
+                className: 'sb-ecg dsh-sb-flow' + (working ? '' : ' idle'),
+                style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
+                title: flowTitle,
+                'aria-hidden': true,
+              },
+              h(
+                'svg',
+                { viewBox: '0 0 128 17', preserveAspectRatio: 'none' },
+                h('polyline', { className: 'sb-ecg-base', points: ECG_PATH }),
+                h('polyline', { className: 'sb-ecg-trace', points: ECG_PATH, pathLength: 100 }),
+              ),
+            )
+          : flowMode === FLOW_WAVE
+            ? h(
+                'span',
+                {
+                  className: 'sb-wave dsh-sb-flow' + (working ? '' : ' idle'),
+                  style: { '--sb-wave-dur': waveSeconds.toFixed(2) + 's' },
+                  title: flowTitle,
+                  'aria-hidden': true,
+                },
+                h(
+                  'svg',
+                  { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
+                  h(
+                    'g',
+                    { className: 'sb-wave-amp' },
+                    h('g', { className: 'sb-wave-scroll sb-wave-back' }, h('path', { d: WAVE_PATH })),
+                    h('g', { className: 'sb-wave-scroll sb-wave-front' }, h('path', { d: WAVE_PATH })),
+                  ),
+                ),
+              )
+            : h(
+                'span',
+                {
+                  className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
+                  style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
+                  title: flowTitle,
+                  'aria-hidden': true,
+                },
+                h('i', null),
+                h('i', null),
+                h('i', null),
+                h('i', null),
+                pixel ? null : h('i', null),
+                pixel ? null : h('i', null),
+                pixel ? null : h('i', null),
+                pixel ? null : h('i', null),
+                h('span', { className: 'sb-flow-gear' }, '\u2699'),
+              );
 
 
       const cacheBlocks = cachePercent === null ? 0 : Math.max(0, Math.min(5, Math.round(cachePercent / 20)));
@@ -920,10 +1064,10 @@ window.__ModuleLoader__.load({
                 {
                   type: 'button',
                   className: 'sb-fx sb-flowmode',
-                  title: flowMode === FLOW_ECG ? t('flowmode.title.ecg') : t('flowmode.title.beads'),
+                  title: t(flowCopy.title),
                   onClick: toggleFlowMode,
                 },
-                flowMode === FLOW_ECG ? t('flowmode.ecg') : t('flowmode.beads'),
+                t(flowCopy.label),
               ),
               h(
                 'button',
@@ -1048,40 +1192,7 @@ window.__ModuleLoader__.load({
                   : h('span', { className: 'sb-zzz', 'aria-hidden': true }, h('i', null, 'Z'), h('i', null, 'z'), h('i', null, 'z'), h('i', null, 'z')),
             ),
             h('span', { className: 'sb-sep' }, '\u00B7'),
-            flowMode === FLOW_ECG
-              ? h(
-                  'span',
-                  {
-                    className: 'sb-ecg dsh-sb-flow' + (working ? '' : ' idle'),
-                    style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                    title: flowTitle,
-                    'aria-hidden': true,
-                  },
-                  h(
-                    'svg',
-                    { viewBox: '0 0 128 17', preserveAspectRatio: 'none' },
-                    h('polyline', { className: 'sb-ecg-base', points: ECG_PATH }),
-                    h('polyline', { className: 'sb-ecg-trace', points: ECG_PATH, pathLength: 100 }),
-                  ),
-                )
-              : h(
-                  'span',
-                  {
-                    className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
-                    style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                    title: flowTitle,
-                    'aria-hidden': true,
-                  },
-                  h('i', null),
-                  h('i', null),
-                  h('i', null),
-                  h('i', null),
-                  pixel ? null : h('i', null),
-                  pixel ? null : h('i', null),
-                  pixel ? null : h('i', null),
-                  pixel ? null : h('i', null),
-                  h('span', { className: 'sb-flow-gear' }, '\u2699'),
-                ),
+            lane,
           ),
           rightGroup,
           h('span', { className: 'sb-splash', ref: splashRef, 'aria-hidden': true }, h('i', null), h('b', null), h('u', null)),
@@ -1103,6 +1214,8 @@ window.__ModuleLoader__.load({
       'flow.idle': 'particles barely drifting',
       'flow.ecg.busy': 'heartbeat trace sweeping at the live token rate',
       'flow.ecg.idle': 'flatline - nothing decoding',
+      'flow.wave.busy': 'two water layers scrolling at the live token rate',
+      'flow.wave.idle': 'still water, one slow swell',
       'metric.cache': 'prompt tokens served from cache —',
       'metric.cache.pending': 'no cached prompt sample yet',
       'metric.split': 'uncached input · output',
@@ -1124,8 +1237,10 @@ window.__ModuleLoader__.load({
       'pixel.title.on': 'low-frame motion is on - click for smooth motion',
       'flowmode.beads': 'beads',
       'flowmode.ecg': 'bpm',
+      'flowmode.wave': 'water',
       'flowmode.title.beads': 'flowing token beads - click for a flat heartbeat trace',
-      'flowmode.title.ecg': 'heartbeat trace at the live rate - click for flowing beads',
+      'flowmode.title.ecg': 'heartbeat trace at the live rate - click for two scrolling water layers',
+      'flowmode.title.wave': 'two water layers scrolling at the live rate - click for flowing beads',
       'demo.off': 'demo',
       'demo.on': 'demo on',
       'demo.title.off': 'play the working animations without sending a prompt',
@@ -1147,6 +1262,8 @@ window.__ModuleLoader__.load({
       'flow.idle': '粒子缓缓漂移',
       'flow.ecg.busy': '心电曲线按实时速率扫过',
       'flow.ecg.idle': '平线 — 当前没有解码',
+      'flow.wave.busy': '两层水波按实时速率流动',
+      'flow.wave.idle': '静水，缓缓起伏',
       'metric.cache': '缓存命中的提示词比例 —',
       'metric.cache.pending': '尚无缓存样本',
       'metric.split': '未缓存输入 · 输出',
@@ -1168,8 +1285,10 @@ window.__ModuleLoader__.load({
       'pixel.title.on': '低帧模式已开启 — 点击恢复平滑动画',
       'flowmode.beads': '粒子',
       'flowmode.ecg': '心电',
+      'flowmode.wave': '水波',
       'flowmode.title.beads': '流动的 token 粒子 — 点击切换为平线心电',
-      'flowmode.title.ecg': '实时速率的心电曲线 — 点击切回流动粒子',
+      'flowmode.title.ecg': '实时速率的心电曲线 — 点击切换为两层流动的水波',
+      'flowmode.title.wave': '两层水波按实时速率流动 — 点击切回流动粒子',
       'demo.off': '演示',
       'demo.on': '演示 开',
       'demo.title.off': '不发送消息，直接播放工作中的动画',
