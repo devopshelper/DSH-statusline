@@ -129,6 +129,9 @@ window.__ModuleLoader__.load({
          means exactly "this strip is being exercised, not observed". */
       '.dsh-sb-shell [data-sb] .sb-tools .sb-fx.on{color:var(--sb-accent);border-color:rgba(var(--sb-glow),.8);box-shadow:0 0 9px rgba(var(--sb-glow),.28)}' +
       '.dsh-sb-shell [data-sb] .sb-tools .sb-fx.on:hover{color:#fff;border-color:var(--sb-accent)}' +
+      /* A toggle that is off reads as inactive rather than as an unlit button
+         that might be the current state. Only the latched toggles dim. */
+      '.dsh-sb-shell [data-sb] .sb-tools .sb-fx.sb-pixel:not(.on),.dsh-sb-shell [data-sb] .sb-tools .sb-fx.sb-fxtoggle:not(.on){opacity:.78}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-tools .sb-fx.on{box-shadow:none}' +
       /* ---- card placement ---------------------------------------------------
          The corner anchor turns the card round: its bottom-right corner lands
@@ -1315,13 +1318,29 @@ window.__ModuleLoader__.load({
                 'button',
                 {
                   type: 'button',
-                  className: 'sb-fx',
+                  /* Every tool button reads as the state it is in, not as the
+                     action it would perform: the accent latch means "this is
+                     on". `fx off` used to be the action label, so a strip with
+                     the effects running said "fx off" and read as its own
+                     opposite. */
+                  className: 'sb-fx sb-pixel' + (pixel ? ' on' : ''),
                   title: pixel ? t('pixel.title.on') : t('pixel.title.off'),
+                  'aria-pressed': pixel ? 'true' : 'false',
                   onClick: togglePixel,
                 },
                 pixel ? t('pixel.on') : t('pixel.off'),
               ),
-              h('button', { type: 'button', className: 'sb-fx', onClick: toggleFx }, lite ? t('fx.on') : t('fx.off')),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'sb-fx sb-fxtoggle' + (lite ? '' : ' on'),
+                  title: lite ? t('fx.title.off') : t('fx.title.on'),
+                  'aria-pressed': lite ? 'false' : 'true',
+                  onClick: toggleFx,
+                },
+                lite ? t('fx.off') : t('fx.on'),
+              ),
               h(
                 'button',
                 {
@@ -1496,6 +1515,8 @@ window.__ModuleLoader__.load({
       'card.hint': 'session figures and palette',
       'fx.off': 'fx off',
       'fx.on': 'fx on',
+      'fx.title.on': 'full-surface FX are on (breathing, splash, halos) - click to keep the strip still',
+      'fx.title.off': 'FX are off - click to bring the breathing, the splash and the halos back',
       'pixel.off': 'pixel',
       'pixel.on': 'pixel on',
       'pixel.title.off': 'step the motion down to a low frame rate (for RDP / software rendering)',
@@ -1549,8 +1570,10 @@ window.__ModuleLoader__.load({
       'card.context': '上下文',
       'card.surface': '表面积',
       'card.hint': '会话数据与配色',
-      'fx.off': '关闭特效',
-      'fx.on': '开启特效',
+      'fx.off': '特效关',
+      'fx.on': '特效开',
+      'fx.title.on': '整条状态条的特效开着（呼吸、波纹、光晕）— 点击关闭',
+      'fx.title.off': '特效已关闭 — 点击恢复呼吸、波纹和光晕',
       'pixel.off': '低帧',
       'pixel.on': '低帧 开',
       'pixel.title.off': '把动画降到低帧率（适合远程桌面 / 软件渲染）',

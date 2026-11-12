@@ -88,14 +88,16 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 
 ## Interactions
 
+Every tool button in the card reads as **the state it is in**, and a latched toggle wears the accent colour: `fx on` glowing means the effects are running, `fx off` greyed means they are suppressed. The label is always the current state, never the action; the action is in the tooltip. (This is a correction: `fx off` used to be the *action* label, so a strip with the effects running said "fx off" and read as its own opposite.)
+
 | Action | Result |
 |---|---|
 | hover the chip | card with turns/steps, decode rate, billed tokens, cache, context occupancy, surface + the size steppers + 12 palette swatches + the toggles |
 | click the chip | pin / unpin the card |
 | click anywhere on the strip | converging wave crests, fired from the click point |
 | palette swatch | repaints every glow (four custom properties carry the whole theme) |
-| `pixel` | low-frame motion for RDP / software rendering |
-| `fx off` | kills whole-surface effects but keeps state identical |
+| `pixel` / `pixel on` | low-frame motion for RDP / software rendering; latched in the accent when on |
+| `fx on` / `fx off` | whole-surface effects, latched in the accent while they are running; state stays identical either way |
 | `beads` / `bpm` / `water` | cycles the flow lane between travelling beads, a heartbeat trace and scrolling water |
 | `demo` | rehearses the working state without sending a prompt |
 | `above` / `corner` | where the card hangs off the strip (see below) |
