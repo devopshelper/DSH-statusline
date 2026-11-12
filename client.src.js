@@ -217,7 +217,32 @@ window.__ModuleLoader__.load({
       '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button>svg>circle+circle{stroke:var(--dsh-sb-ctx,var(--dsw-alias-label-tertiary))}' +
       '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button:hover,' +
       '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button[aria-expanded="true"]{color:var(--dsh-sb-ctx-hover,var(--dsh-sb-ctx,var(--dsw-alias-label-secondary)))}' +
-      '@media (prefers-reduced-motion:reduce){.dsh-sb-shell [data-sb]{animation:none!important}}';
+      '@media (prefers-reduced-motion:reduce){.dsh-sb-shell [data-sb]{animation:none!important}}' +
+      /* ---- settings page ----------------------------------------------------
+         Uses the host's own tokens so it belongs in Settings, and keeps the
+         preview in the strip's own language. Nothing here is scoped to
+         `.dsh-sb-shell`: the page is not inside the dock. */
+      '.dsh-sb-settings{display:flex;flex-direction:column;gap:14px;max-width:760px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}' +
+      '.dsh-sb-settings .sb-set-title{margin:0;font-size:15px;font-weight:600}' +
+      '.dsh-sb-settings .sb-set-intro{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px}' +
+      '.dsh-sb-settings .sb-set-preview{margin:2px 0 4px;pointer-events:none}' +
+      '.dsh-sb-settings .sb-set-group{display:flex;flex-direction:column;gap:8px;padding:12px 0 0;border-top:.5px solid var(--dsw-alias-border-l2)}' +
+      '.dsh-sb-settings .sb-set-group-title{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--dsw-alias-label-tertiary)}' +
+      '.dsh-sb-settings .sb-set-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}' +
+      '.dsh-sb-settings .sb-set-label{flex:0 0 96px;color:var(--dsw-alias-label-secondary);font-size:12px}' +
+      '.dsh-sb-settings .sb-set-choices,.dsh-sb-settings .sb-set-stepper,.dsh-sb-settings .sb-set-swatches{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}' +
+      '.dsh-sb-settings .sb-set-choice{appearance:none;padding:3px 10px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:1.5;cursor:pointer}' +
+      '.dsh-sb-settings .sb-set-choice[data-on]{border-color:var(--dsw-alias-state-business-primary);color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 10%,transparent)}' +
+      '@media (hover:hover){.dsh-sb-settings .sb-set-choice:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-tertiary)}}' +
+      '.dsh-sb-settings .sb-set-choice:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}' +
+      '.dsh-sb-settings .sb-set-stepper .sb-set-choice{min-width:26px;padding:2px 0;text-align:center;font-variant-numeric:tabular-nums}' +
+      '.dsh-sb-settings .sb-set-value{min-width:52px;text-align:center;font-variant-numeric:tabular-nums;font-size:12px}' +
+      '.dsh-sb-settings .sb-set-swatch{width:20px;height:20px;padding:0;border-radius:50%;border:1px solid var(--dsw-alias-border-l2);cursor:pointer;transition:transform .12s ease,border-color .15s ease}' +
+      '.dsh-sb-settings .sb-set-swatch.on{border:2px solid var(--dsw-alias-label-primary);transform:scale(1.1)}' +
+      '@media (hover:hover){.dsh-sb-settings .sb-set-swatch:hover{transform:scale(1.15)}}' +
+      '.dsh-sb-settings .sb-set-swatch:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}' +
+      '.dsh-sb-settings .sb-set-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2)}' +
+      '.dsh-sb-settings .sb-set-hint{color:var(--dsw-alias-label-tertiary);font-size:11px}';
 
     const GLYPHS = ['\u273B', '\u273D', '\u2736', '\u2733', '\u2722', '\u00B7'];
 
@@ -431,6 +456,28 @@ window.__ModuleLoader__.load({
       } catch (error) {
         /* quota or blocked storage: the choice simply does not persist */
       }
+    }
+
+    /* One channel for "a setting changed somewhere else".
+       The strip reads its preferences from storage once, at mount; the settings
+       page writes them. Without a signal the open strip would keep the old theme
+       until a reload. The event only means "re-read the known keys" - it carries
+       no payload, so it cannot desync from the storage names. */
+    const SETTINGS_EVENT = 'dsh-statusbar:settings';
+    function announceSettings() {
+      try {
+        window.dispatchEvent(new Event(SETTINGS_EVENT));
+      } catch (error) {
+        /* no window: the strip will pick the value up on its next mount */
+      }
+    }
+    function announceLater() {
+      window.setTimeout(announceSettings, 0);
+    }
+    /** Step indexes are stored as strings; anything out of range falls back. */
+    function readStoredIndex(key, fallback, length) {
+      const stored = Number(readStored(key, String(fallback)));
+      return Number.isInteger(stored) && stored >= 0 && stored < length ? stored : fallback;
     }
 
     /** Reduced-motion is the sane default for pixel mode. */
@@ -726,14 +773,8 @@ window.__ModuleLoader__.load({
       const [cardBox, setCardBox] = React.useState(null);
       /* Size steppers, persisted as the step index rather than the pixel value
          so the preset list can grow without stranding a stored width. */
-      const [widthStep, setWidthStep] = React.useState(() => {
-        const stored = Number(readStored(STORE_WIDTH, String(WIDTH_DEFAULT)));
-        return Number.isInteger(stored) && stored >= 0 && stored < WIDTH_STEPS.length ? stored : WIDTH_DEFAULT;
-      });
-      const [heightStep, setHeightStep] = React.useState(() => {
-        const stored = Number(readStored(STORE_HEIGHT, String(HEIGHT_DEFAULT)));
-        return Number.isInteger(stored) && stored >= 0 && stored < HEIGHT_STEPS.length ? stored : HEIGHT_DEFAULT;
-      });
+      const [widthStep, setWidthStep] = React.useState(() => readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length));
+      const [heightStep, setHeightStep] = React.useState(() => readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length));
       const working = realWorking || demo;
 
       const barRef = React.useRef(null);
@@ -744,6 +785,24 @@ window.__ModuleLoader__.load({
       const closeTimer = React.useRef(0);
       const workStart = React.useRef(0);
       const doneTimer = React.useRef(0);
+
+      /* The settings page writes the same storage keys the strip reads at mount.
+         Re-read every one of them when it says so, which is what makes a theme
+         or a size change land on the strip that is already on screen instead of
+         after a reload. */
+      React.useEffect(() => {
+        const sync = () => {
+          setTheme(readStored(STORE_THEME, 'deepseek', THEME_IDS));
+          setLite(readStored(STORE_FX, 'off') === 'on');
+          setPixel(readStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off') === 'on');
+          setFlowMode(readStored(STORE_FLOW, FLOW_BEADS, FLOW_ORDER));
+          setAnchor(readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]));
+          setWidthStep(readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length));
+          setHeightStep(readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length));
+        };
+        window.addEventListener(SETTINGS_EVENT, sync);
+        return () => window.removeEventListener(SETTINGS_EVENT, sync);
+      }, []);
 
       React.useEffect(() => {
         const phraseTimer = window.setInterval(
@@ -893,30 +952,32 @@ window.__ModuleLoader__.load({
         [],
       );
 
+      /* Each of these persists and then says so, so an open settings page (or a
+         second strip) follows the change instead of waiting for a reload. The
+         next value is computed out here rather than inside the updater: an
+         updater may run twice, and announcing from inside it would double-fire. */
       const chooseTheme = (id) => {
         setTheme(id);
         writeStored(STORE_THEME, id);
+        announceSettings();
       };
       const toggleFx = () => {
-        setLite((previous) => {
-          const next = !previous;
-          writeStored(STORE_FX, next ? 'on' : 'off');
-          return next;
-        });
+        const next = !lite;
+        setLite(next);
+        writeStored(STORE_FX, next ? 'on' : 'off');
+        announceSettings();
       };
       const togglePixel = () => {
-        setPixel((previous) => {
-          const next = !previous;
-          writeStored(STORE_PIXEL, next ? 'on' : 'off');
-          return next;
-        });
+        const next = !pixel;
+        setPixel(next);
+        writeStored(STORE_PIXEL, next ? 'on' : 'off');
+        announceSettings();
       };
       const toggleFlowMode = () => {
-        setFlowMode((previous) => {
-          const next = FLOW_ORDER[(FLOW_ORDER.indexOf(previous) + 1) % FLOW_ORDER.length];
-          writeStored(STORE_FLOW, next);
-          return next;
-        });
+        const next = FLOW_ORDER[(FLOW_ORDER.indexOf(flowMode) + 1) % FLOW_ORDER.length];
+        setFlowMode(next);
+        writeStored(STORE_FLOW, next);
+        announceSettings();
       };
 
       const openCard = () => {
@@ -977,11 +1038,10 @@ window.__ModuleLoader__.load({
       };
 
       const toggleAnchor = () => {
-        setAnchor((previous) => {
-          const next = previous === ANCHOR_CORNER ? ANCHOR_ABOVE : ANCHOR_CORNER;
-          writeStored(STORE_ANCHOR, next);
-          return next;
-        });
+        const next = anchor === ANCHOR_CORNER ? ANCHOR_ABOVE : ANCHOR_CORNER;
+        setAnchor(next);
+        writeStored(STORE_ANCHOR, next);
+        announceSettings();
       };
 
       /* Grab the header: record the pointer, the offset it started from, and the
@@ -1103,18 +1163,16 @@ window.__ModuleLoader__.load({
       const heightValue = HEIGHT_STEPS[heightStep];
       const widthLabel = widthValue === 'full' ? t('size.full') : String(widthValue);
       const stepWidth = (delta) => {
-        setWidthStep((previous) => {
-          const next = Math.max(0, Math.min(WIDTH_STEPS.length - 1, previous + delta));
-          writeStored(STORE_WIDTH, String(next));
-          return next;
-        });
+        const next = Math.max(0, Math.min(WIDTH_STEPS.length - 1, widthStep + delta));
+        setWidthStep(next);
+        writeStored(STORE_WIDTH, String(next));
+        announceSettings();
       };
       const stepHeight = (delta) => {
-        setHeightStep((previous) => {
-          const next = Math.max(0, Math.min(HEIGHT_STEPS.length - 1, previous + delta));
-          writeStored(STORE_HEIGHT, String(next));
-          return next;
-        });
+        const next = Math.max(0, Math.min(HEIGHT_STEPS.length - 1, heightStep + delta));
+        setHeightStep(next);
+        writeStored(STORE_HEIGHT, String(next));
+        announceSettings();
       };
       const sizeRow = h(
         'div',
@@ -1535,6 +1593,263 @@ window.__ModuleLoader__.load({
       );
     }
 
+    /* ------------------------------------------------------------------ *
+     * Settings page
+     *
+     * Registered into `settings.plugins.tab`, so the strip is editable from
+     * Settings > Plugins and not only from its own hover card. Everything it
+     * writes is the same key the strip already reads, plus the change event
+     * above, so an open strip follows along instead of waiting for a reload.
+     * ------------------------------------------------------------------ */
+
+    /** Every persisted preference, read as one snapshot. */
+    function readPrefs() {
+      return {
+        theme: readStored(STORE_THEME, 'deepseek', THEME_IDS),
+        lite: readStored(STORE_FX, 'off') === 'on',
+        pixel: readStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off') === 'on',
+        flow: readStored(STORE_FLOW, FLOW_BEADS, FLOW_ORDER),
+        anchor: readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]),
+        widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
+        heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
+      };
+    }
+
+    function SettingsPanel(props) {
+      const t = typeof props.t === 'function' ? props.t : (key) => key;
+      const [prefs, setPrefs] = React.useState(readPrefs);
+
+      React.useEffect(() => {
+        const sync = () => setPrefs(readPrefs());
+        window.addEventListener(SETTINGS_EVENT, sync);
+        return () => window.removeEventListener(SETTINGS_EVENT, sync);
+      }, []);
+
+      const commit = () => {
+        setPrefs(readPrefs());
+        announceSettings();
+      };
+      const put = (key, value) => {
+        writeStored(key, value);
+        commit();
+      };
+
+      const widthValue = WIDTH_STEPS[prefs.widthStep];
+      const heightValue = HEIGHT_STEPS[prefs.heightStep];
+      const widthText = widthValue === 'full' ? t('size.full') : String(widthValue);
+      const stepOf = (key, current, length, delta) => {
+        const next = Math.max(0, Math.min(length - 1, current + delta));
+        put(key, String(next));
+      };
+
+      const choice = (label, active, onSelect, title) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'sb-set-choice',
+            'data-on': active ? 'true' : undefined,
+            title: title,
+            'aria-pressed': active ? 'true' : 'false',
+            onClick: onSelect,
+          },
+          label,
+        );
+
+      const row = (label, children) =>
+        h('div', { className: 'sb-set-row' }, h('span', { className: 'sb-set-label' }, label), children);
+
+      const stepper = (label, value, onDown, onUp) =>
+        row(
+          label,
+          h(
+            'span',
+            { className: 'sb-set-stepper' },
+            choice('\u2212', false, onDown, t('settings.step.down')),
+            h('span', { className: 'sb-set-value' }, value),
+            choice('+', false, onUp, t('settings.step.up')),
+          ),
+        );
+
+      /* A live sample of the strip: same classes, same attributes, no session.
+         It is the only honest way to choose a palette - the swatch is a colour,
+         the preview is the glow. */
+      const preview = h(
+        'div',
+        { className: 'dsh-sb-shell sb-set-preview', 'aria-hidden': true },
+        h(
+          'div',
+          {
+            'data-sb': '',
+            'data-sb-theme': prefs.theme,
+            'data-sb-state': 'work',
+            'data-sb-lite': prefs.lite ? '' : undefined,
+            'data-sb-pixel': prefs.pixel ? '' : undefined,
+            style: {
+              '--sb-shell-max': widthValue === 'full' ? 'none' : widthValue + 'px',
+              '--sb-pad-y': heightValue + 'px',
+            },
+          },
+          h(
+            'div',
+            { className: 'sb-group' },
+            h('span', { className: 'sb-flower' }, '\u273B'),
+            h('span', { className: 'dsh-sb-brand' }, t('settings.preview.caption')),
+          ),
+          h(
+            'div',
+            { className: 'sb-group' },
+            h('span', { className: 'sb-status sb-glow' }, t('settings.preview.phrase')),
+            h('span', { className: 'sb-sep' }, '\u00B7'),
+            h(
+              'span',
+              { className: 'sb-flow dsh-sb-flow' },
+              h('i', null),
+              h('i', null),
+              h('i', null),
+              h('i', null),
+              h('i', null),
+              h('i', null),
+              h('i', null),
+              h('i', null),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'sb-group end' },
+            h('span', { className: 'dsh-sb-metric sb-ok' }, '\u26A1 99%'),
+            h('span', { className: 'sb-sep' }, '\u00B7'),
+            h(
+              'span',
+              { className: 'dsh-sb-metric sb-io' },
+              h('span', { className: 'sb-in' }, h('b', { className: 'sb-in-arrow' }, '\u2191'), h('span', { className: 'sb-io-v' }, '12.0k')),
+              h('span', { className: 'sb-io-sep' }, '/'),
+              h('span', { className: 'sb-out' }, h('b', { className: 'sb-out-arrow' }, '\u2193'), h('span', { className: 'sb-io-v' }, '3.4k')),
+            ),
+          ),
+        ),
+      );
+
+      return h(
+        'div',
+        { className: 'dsh-sb-settings' },
+        h('h3', { className: 'sb-set-title' }, t('settings.title')),
+        h('p', { className: 'sb-set-intro' }, t('settings.intro')),
+        preview,
+        h(
+          'div',
+          { className: 'sb-set-group' },
+          h('span', { className: 'sb-set-group-title' }, t('settings.appearance')),
+          row(
+            t('settings.theme'),
+            h(
+              'span',
+              { className: 'sb-set-swatches' },
+              THEMES.map((entry) =>
+                h('button', {
+                  key: entry.id,
+                  type: 'button',
+                  className: 'sb-set-swatch' + (entry.id === prefs.theme ? ' on' : ''),
+                  style: { background: entry.dot },
+                  title: entry.label,
+                  'aria-label': entry.label,
+                  'aria-pressed': entry.id === prefs.theme ? 'true' : 'false',
+                  onClick: () => put(STORE_THEME, entry.id),
+                }),
+              ),
+            ),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'sb-set-group' },
+          h('span', { className: 'sb-set-group-title' }, t('settings.behaviour')),
+          row(
+            t('settings.fx'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(t('fx.on'), !prefs.lite, () => put(STORE_FX, 'off'), t('fx.title.on')),
+              choice(t('fx.off'), prefs.lite, () => put(STORE_FX, 'on'), t('fx.title.off')),
+            ),
+          ),
+          row(
+            t('settings.pixel'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(t('pixel.off'), !prefs.pixel, () => put(STORE_PIXEL, 'off'), t('pixel.title.off')),
+              choice(t('pixel.on'), prefs.pixel, () => put(STORE_PIXEL, 'on'), t('pixel.title.on')),
+            ),
+          ),
+          row(
+            t('settings.lane'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              FLOW_ORDER.map((mode) =>
+                choice(t(flowText(mode).label), prefs.flow === mode, () => put(STORE_FLOW, mode), t(flowText(mode).title)),
+              ),
+            ),
+          ),
+          row(
+            t('settings.anchor'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(t('anchor.above'), prefs.anchor === ANCHOR_ABOVE, () => put(STORE_ANCHOR, ANCHOR_ABOVE), t('anchor.title.above')),
+              choice(t('anchor.corner'), prefs.anchor === ANCHOR_CORNER, () => put(STORE_ANCHOR, ANCHOR_CORNER), t('anchor.title.corner')),
+            ),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'sb-set-group' },
+          h('span', { className: 'sb-set-group-title' }, t('settings.size')),
+          stepper(
+            t('settings.width'),
+            widthText,
+            () => stepOf(STORE_WIDTH, prefs.widthStep, WIDTH_STEPS.length, -1),
+            () => stepOf(STORE_WIDTH, prefs.widthStep, WIDTH_STEPS.length, 1),
+          ),
+          stepper(
+            t('settings.height'),
+            String(heightValue),
+            () => stepOf(STORE_HEIGHT, prefs.heightStep, HEIGHT_STEPS.length, -1),
+            () => stepOf(STORE_HEIGHT, prefs.heightStep, HEIGHT_STEPS.length, 1),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'sb-set-foot' },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'sb-set-choice',
+              onClick: () => {
+                writeStored(STORE_THEME, 'deepseek');
+                writeStored(STORE_FX, 'off');
+                writeStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off');
+                writeStored(STORE_FLOW, FLOW_BEADS);
+                writeStored(STORE_ANCHOR, ANCHOR_ABOVE);
+                writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
+                writeStored(STORE_HEIGHT, String(HEIGHT_DEFAULT));
+                commit();
+              },
+            },
+            t('settings.reset'),
+          ),
+          h('span', { className: 'sb-set-hint' }, t('settings.reset.hint')),
+        ),
+      );
+    }
+
+    /** Settings must never take the page down; reuse the strip's own fallback. */
+    function StatusBarSettings(props) {
+      return h(Guard, { fallback: renderFallback }, h(SettingsPanel, props));
+    }
+
     /** Required services: slot registration and localized strings. */
     const inject = ['slots', 'locale'];
 
@@ -1598,6 +1913,24 @@ window.__ModuleLoader__.load({
       'size.wider': 'widen the strip by one step - full lets it run edge to edge',
       'size.shorter': 'flatten the strip by one step',
       'size.taller': 'heighten the strip by one step',
+      'settings.title': 'status line',
+      'settings.intro': 'Saved in this browser. The strip follows along as you change it, and the preview above is the real thing, not a mock.',
+      'settings.appearance': 'appearance',
+      'settings.behaviour': 'behaviour',
+      'settings.size': 'size',
+      'settings.theme': 'theme',
+      'settings.fx': 'full-surface FX',
+      'settings.pixel': 'low frame rate',
+      'settings.lane': 'flow lane',
+      'settings.anchor': 'card anchor',
+      'settings.width': 'width',
+      'settings.height': 'height',
+      'settings.step.down': 'one step down',
+      'settings.step.up': 'one step up',
+      'settings.reset': 'reset to defaults',
+      'settings.reset.hint': 'palette, effects, lane, anchor and size',
+      'settings.preview.caption': 'status line',
+      'settings.preview.phrase': 'this is how it moves',
     };
     const zh = {
       'bar.label': '状态栏',
@@ -1657,6 +1990,24 @@ window.__ModuleLoader__.load({
       'size.wider': '把状态条加宽一档 — 满宽时铺满整行',
       'size.shorter': '把状态条压扁一档',
       'size.taller': '把状态条加高一档',
+      'settings.title': '状态条',
+      'settings.intro': '设置保存在当前浏览器里。改动会立刻作用到状态条，上面的预览是真实的，不是示意图。',
+      'settings.appearance': '外观',
+      'settings.behaviour': '行为',
+      'settings.size': '尺寸',
+      'settings.theme': '配色',
+      'settings.fx': '整条特效',
+      'settings.pixel': '低帧率',
+      'settings.lane': '流动效果',
+      'settings.anchor': '卡片位置',
+      'settings.width': '宽度',
+      'settings.height': '高度',
+      'settings.step.down': '降低一档',
+      'settings.step.up': '提高一档',
+      'settings.reset': '恢复默认',
+      'settings.reset.hint': '配色、特效、流动效果、卡片位置和尺寸',
+      'settings.preview.caption': '状态条',
+      'settings.preview.phrase': '它就是这么动的',
     };
 
     /**
@@ -1690,6 +2041,23 @@ window.__ModuleLoader__.load({
         ctx.slots.register(
           { name: 'conversation.composer.dock', id: 'statusline', order: -1, locale: NS, label: 'Status line' },
           StatusBar,
+        ),
+      );
+
+      /* Settings > Plugins gets a page of its own. `label` is a function so the
+         tab name is resolved when the tab is drawn, in the reader's language,
+         instead of being frozen at registration. */
+      const settingsLabel = () => {
+        try {
+          return ctx.locale.bind(NS)('settings.title');
+        } catch (error) {
+          return 'Status line';
+        }
+      };
+      ctx.slots.inject('settings.plugins.tab', () =>
+        ctx.slots.register(
+          { name: 'settings.plugins.tab', id: 'statusline', order: 20, locale: NS, label: settingsLabel },
+          StatusBarSettings,
         ),
       );
     }

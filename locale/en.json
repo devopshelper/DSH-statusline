@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Status Bar",
-    "description": "Takes over the composer status cells with a living terminal strip: breathing accent glow, rotating status phrase, token-flow beads, real turns, tokens, cache-hit and context figures, twelve palettes and a click wave."
+    "description": "A living terminal strip in the composer dock: the running model with its family mark, a rotating status phrase, a token-flow lane (beads, heartbeat or water), the agent's checklist as step boxes, and real turns, token split, cache-hit and context figures. Twelve palettes, a click wave, and a settings page under Plugins."
   }
 }

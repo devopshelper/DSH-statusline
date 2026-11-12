@@ -108,6 +108,21 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 
 Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
+## The settings page
+
+The same preferences are editable from **Settings → Plugins**, as a tab of the plugin's own (`settings.plugins.tab`, id `statusline`, order 20) — no need to open the hover card to change a palette.
+
+| | |
+|---|---|
+| seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
+| edits | palette (12), full-surface FX, low frame rate, flow lane, card anchor, width, height, and a reset |
+| preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
+| storage | the same browser-local keys the strip reads; nothing is written to the profile |
+| liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
+
+The page is wrapped in the same error boundary as the strip: a broken settings page degrades to the fallback box instead of taking the Settings panel down. Registration follows the shape the shipped plugin-inventory tab uses (`label` as a function so the tab name resolves in the reader's language at draw time).
+
+
 ## The model chip
 
 The chip names the model the session is actually running instead of the harness brand: a small family mark, the model id verbatim, and the reasoning effort when the adapter reports one. The harness ships no provider artwork, so the marks are original geometric hints keyed by family (`deepseek`, `claude`, `openai`, `gemini`, `llama`, `mistral`, `qwen`, `moonshot`, `grok`, and a plain tile for anything else) — a hint, not a vendor logo, and they inherit the accent colour so they follow the palette.
