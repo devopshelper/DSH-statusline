@@ -108,7 +108,7 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | drag the card header | moves the card anywhere; double-click the header to put it back |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.defaultbar"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
 ## The settings page
 
@@ -117,7 +117,7 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), panel view, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
+| edits | palette (12), panel view, the default bar, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
 | preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
@@ -160,6 +160,19 @@ The board also folds. Collapsed it is the summary line alone — state, turns/st
 The switch lives in the card header rather than the tool row because it changes the panel's shape, and the choice is persisted with the rest. Both views share the same footer (palette, size, tools) and the same floating layer: only the width differs, and the corner fit is measured against the card **as it renders**, so switching to the board at the window's left edge falls back to `above` on its own instead of hanging off-screen.
 
 The meters are twenty blocks of five percent. Activity is scaled against 200 tok/s because that is the top of the range a person can still read at a glance; cache and context are already percentages.
+
+### The default bar
+
+The harness draws its own status pills under ours. In board view that is the same six figures twice, so **default bar: board only** hides the harness's pills while the board is open and leaves them alone everywhere else; `always show` keeps them regardless. Both live in Settings → Plugins.
+
+The rule is structural and gated on our own marker class, so it can only ever hide siblings of the shell that are not the shell and not the context ring:
+
+```css
+:is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default) > *
+  :not(:has(.dsh-sb-shell)):not(:has(svg[viewBox="0 0 14 14"])) { display: none }
+```
+
+If the owner restructures the dock the selector stops matching and the pills come back — the failure mode is "unchanged", not "something else hidden".
 
 ## Card placement
 

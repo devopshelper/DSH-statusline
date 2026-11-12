@@ -218,6 +218,13 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-card.board.collapsed .dsh-sb-card-head{padding-bottom:0;border-bottom:0}' +
       '.dsh-sb-shell [data-sb] .sb-collapse{flex:0 0 auto;width:14px;padding:0;border:0;background:transparent;color:rgba(150,170,190,.8);font-size:8px;line-height:1;cursor:pointer}' +
       '.dsh-sb-shell [data-sb] .sb-collapse:hover{color:#fff}' +
+      /* ---- hiding the harness's own pills -----------------------------------
+         Structural, and gated on our own marker class, so it can only ever hide
+         siblings of the shell that are not the shell itself and not the context
+         ring (the only other thing in that dock with a 14x14 svg). If the owner
+         restructures the dock the selector stops matching and the pills come
+         back - the failure mode is "unchanged", not "something else hidden". */
+      ':is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default)>*:not(:has(.dsh-sb-shell)):not(:has(svg[viewBox="0 0 14 14"])){display:none!important}' +
       '.dsh-sb-shell [data-sb] .sb-board{display:flex;flex-direction:column;gap:9px;margin-top:2px}' +
       '.dsh-sb-shell [data-sb] .sb-board-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 auto;min-width:0;font-size:11px;color:#fff}' +
       '.dsh-sb-shell [data-sb] .sb-board-state{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--sb-accent)}' +
@@ -474,6 +481,7 @@ window.__ModuleLoader__.load({
     const STORE_ANCHOR = 'dsh.statusbar.anchor';
     const STORE_VIEW = 'dsh.statusbar.view';
     const STORE_COLLAPSE = 'dsh.statusbar.collapse';
+    const STORE_DEFAULTBAR = 'dsh.statusbar.defaultbar';
     const STORE_WIDTH = 'dsh.statusbar.width';
     const STORE_HEIGHT = 'dsh.statusbar.height';
 
@@ -497,6 +505,11 @@ window.__ModuleLoader__.load({
        always had, and a board that gives the numbers room. */
     const VIEW_CARD = 'card';
     const VIEW_BOARD = 'board';
+    /* The harness draws its own pills line under ours. In board view it says the
+       same things twice, so the default is to hide it there - and to leave it
+       alone everywhere else, because the compact card does not repeat it. */
+    const DEFAULTBAR_BOARD = 'board';
+    const DEFAULTBAR_KEEP = 'keep';
     const ANCHOR_ABOVE = 'above';
     const ANCHOR_CORNER = 'corner';
     const CARD_W = 300;
@@ -806,9 +819,14 @@ window.__ModuleLoader__.load({
     /** Only shown if the live render throws; a blank dock cell would be silent. */
     function renderFallback(error) {
       const message = error instanceof Error ? error.message : String(error);
+      /* The marker the stylesheet keys on. It sits on our shell rather than on
+         the dock, because the dock is not ours to touch: the rule hides the
+         dock's other children only while this class is present. */
+      const hideDefaultBar = view === VIEW_BOARD && defaultBar === DEFAULTBAR_BOARD;
+
       return h(
         'div',
-        { className: 'dsh-sb-shell' },
+        { className: 'dsh-sb-shell' + (hideDefaultBar ? ' sb-hide-default' : '') },
         h(
           'div',
           { 'data-sb': '', 'data-sb-theme': 'deepseek', 'data-sb-state': 'idle', 'data-sb-lite': '', title: message },
@@ -894,6 +912,7 @@ window.__ModuleLoader__.load({
       const [view, setView] = React.useState(() => readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
       /* The board folds down to its summary line; the card has no such state. */
       const [collapsed, setCollapsed] = React.useState(() => readStored(STORE_COLLAPSE, 'off') === 'on');
+      const [defaultBar, setDefaultBar] = React.useState(() => readStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD, [DEFAULTBAR_BOARD, DEFAULTBAR_KEEP]));
       const working = realWorking || demo;
 
       const barRef = React.useRef(null);
@@ -920,6 +939,7 @@ window.__ModuleLoader__.load({
           setHeightStep(readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length));
           setView(readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
           setCollapsed(readStored(STORE_COLLAPSE, 'off') === 'on');
+          setDefaultBar(readStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD, [DEFAULTBAR_BOARD, DEFAULTBAR_KEEP]));
         };
         window.addEventListener(SETTINGS_EVENT, sync);
         return () => window.removeEventListener(SETTINGS_EVENT, sync);
@@ -1930,9 +1950,14 @@ window.__ModuleLoader__.load({
               document.body,
             );
 
+      /* The marker the stylesheet keys on. It sits on our shell rather than on
+         the dock, because the dock is not ours to touch: the rule hides the
+         dock's other children only while this class is present. */
+      const hideDefaultBar = view === VIEW_BOARD && defaultBar === DEFAULTBAR_BOARD;
+
       return h(
         'div',
-        { className: 'dsh-sb-shell' },
+        { className: 'dsh-sb-shell' + (hideDefaultBar ? ' sb-hide-default' : '') },
         h(
           'div',
           rootProps,
@@ -1984,6 +2009,7 @@ window.__ModuleLoader__.load({
         flow: readStored(STORE_FLOW, FLOW_BEADS, FLOW_ORDER),
         anchor: readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]),
         view: readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]),
+        defaultBar: readStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD, [DEFAULTBAR_BOARD, DEFAULTBAR_KEEP]),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
       };
@@ -2167,6 +2193,25 @@ window.__ModuleLoader__.load({
             ),
           ),
           row(
+            t('settings.defaultBar'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(
+                t('defaultBar.board'),
+                prefs.defaultBar === DEFAULTBAR_BOARD,
+                () => put(STORE_DEFAULTBAR, DEFAULTBAR_BOARD),
+                t('defaultBar.title.board'),
+              ),
+              choice(
+                t('defaultBar.keep'),
+                prefs.defaultBar === DEFAULTBAR_KEEP,
+                () => put(STORE_DEFAULTBAR, DEFAULTBAR_KEEP),
+                t('defaultBar.title.keep'),
+              ),
+            ),
+          ),
+          row(
             t('settings.panel'),
             h(
               'span',
@@ -2217,6 +2262,7 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_FLOW, FLOW_BEADS);
                 writeStored(STORE_ANCHOR, ANCHOR_ABOVE);
                 writeStored(STORE_VIEW, VIEW_CARD);
+                writeStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD);
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
                 writeStored(STORE_HEIGHT, String(HEIGHT_DEFAULT));
                 commit();
@@ -2320,6 +2366,11 @@ window.__ModuleLoader__.load({
       'view.title.collapse': 'fold the board down to its summary line',
       'view.title.expand': 'unfold the board',
       'settings.panel': 'panel',
+      'settings.defaultBar': 'default bar',
+      'defaultBar.board': 'board only',
+      'defaultBar.keep': 'always show',
+      'defaultBar.title.board': "hide the harness's own status pills while the board is open",
+      'defaultBar.title.keep': "always keep the harness's own status pills",
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
       'size.width': 'w',
@@ -2429,6 +2480,11 @@ window.__ModuleLoader__.load({
       'view.title.collapse': '把面板折叠成一行摘要',
       'view.title.expand': '展开面板',
       'settings.panel': '面板',
+      'settings.defaultBar': '默认状态栏',
+      'defaultBar.board': '仅在面板时隐藏',
+      'defaultBar.keep': '始终显示',
+      'defaultBar.title.board': '打开面板视图时隐藏 Harness 自带的状态栏',
+      'defaultBar.title.keep': '始终保留 Harness 自带的状态栏',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
       'size.width': '宽',
