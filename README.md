@@ -1,6 +1,6 @@
 # DSH Statusline
 
-A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), offered in two places: a bar docked under the composer (which replaces the harness's own pills line while it is on) and a floating card you can drag anywhere. Each has its own switch, so either alone, both, or neither are valid.
+A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), offered as one of two presentations: a bar docked under the composer (which replaces the harness's own pills line while it is on) or a floating card you can drag anywhere. One at a time, or none; choosing one switches the other off.
 
 ```
 ✻ ◇ deepseek-v4.1-flash · ✦ Flibbertigibbeting...  · •••••••• · 42 tok/s · ▣▣◧▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
@@ -79,7 +79,7 @@ Everything comes from session projections — no polling, no client-side folding
 |---|---|
 | `sessionStats` | turns, steps, `decodeTokens / decodeMs` → tok/s (drives bead speed and the strip's tok/s tachometer), `llmMs + toolMs` → wall time |
 | `tokenUsage` | cache-hit % (`cacheRead / promptSide`), the `↑in / ↓out` split (uncached input, output), and the card's billed total (`uncached + output + cacheRead + cacheWrite`) |
-| `contextPressure` | `projectedTokens ?? pressureTokens` / `contextWindow` → ctx %, clamped at 100 (card only) |
+| `contextPressure` | `projectedTokens ?? pressureTokens` / `contextWindow` → ctx %, clamped at 100 (card, and the opt-in strip gauge) |
 | `contextBreakdown` | surface composition, shown in the card |
 | `modelSelection` | the chip's model name and reasoning effort (`next ?? lastUsed`, so a blank session and a settled one both read) |
 | `todos` | the step boxes (the same projection the harness's own checklist dock reads) |
@@ -91,6 +91,10 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 ### The tok/s tachometer
 
 The strip writes down the figure the lane is drawing: `decodeTokens / decodeMs` for the session, next to a 30×16 tachometer. The arc fills toward 200 tok/s — the same ceiling the board's activity meter uses — and the needle points at the same value, so the gauge's height means speed rather than shape. A very fast session pins the needle to the right instead of wrapping it. Arc and needle ease toward a new reading (0.5 s) instead of snapping; pixel mode drops that easing, since a smooth sweep is the thing it is there to avoid. The number is the reading; the gauge is its echo.
+
+### The context gauge
+
+Off by default, because the composer already draws the harness's own context ring. Turn on **context gauge** in Settings → Plugins and the strip adds a compact fuel gauge to the right-hand cluster: a 22×6 runway, a fill proportional to `contextPressure`, and the percentage. It is a reading, not decoration, so the fill is semantic: the accent while there is room, amber from 75%, red from 90% — and those colours never theme, because a warning that recolours itself stops being a warning. The tooltip carries the absolute pair (`32% (41.0k / 128.0k)`). It is also in the settings preview, so you can see it before switching it on.
 
 ## Interactions
 
@@ -115,7 +119,7 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | drag the floating card | moves it anywhere; double-click sends it back to the default seat |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.float"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.phrases"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.float"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.phrases"]`, `["dsh.statusbar.context"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
 ## The settings page
 
@@ -124,8 +128,8 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), panel view, the two bars (line / floating card), the phrase list, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
-| preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
+| edits | palette (12), panel view, the strip presentation (line / floating card), card position reset, the phrase list, the context gauge, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
+| preview | a real strip, not a mock: same classes, same attributes, same theme variables, and the same lane/gauge builders the strip uses, so the preview follows the lane, phrase, context and tok/s choices as you click |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
 
@@ -168,18 +172,18 @@ The switch lives in the card header rather than the tool row because it changes 
 
 The meters are twenty blocks of five percent. Activity is scaled against 200 tok/s because that is the top of the range a person can still read at a glance; cache and context are already percentages.
 
-### Two bars, two switches
+### One strip, two presentations
 
-The same strip is offered in two places, each with its own switch in Settings → Plugins:
+The same strip can sit in two places, chosen in Settings → Plugins:
 
 | switch | on means | off means |
 |---|---|---|
-| **status line** | the strip sits in the dock under the composer and owns the hover panel | nothing is docked; the harness's own pills return |
-| **status card** | the strip also floats over the conversation, draggable by its body | no floating bar |
+| **status line** | the strip sits in the dock under the composer and owns the hover panel | nothing is docked; the floating card (if on) is the only copy |
+| **status card** | the strip floats over the conversation, draggable by its body | no floating bar |
 
-They are independent: line only, card only, both, or neither. Both on is two copies of the same line, one docked and one floating; the floating copy is a bar, not a second panel.
+They are alternatives, not layers: choosing one switches the other off, so the same line is never drawn twice. Both off restores the harness's own pills. The floating copy is a bar, not a second panel.
 
-While the docked line is on, it replaces the harness's own pills instead of duplicating them. The hiding rule is structural and gated on our own marker class, so it can only hide siblings of the shell that are not the shell and not the context ring:
+While either presentation is on, the harness's own pills are replaced. The line does it with the shell's marker class; the floating-only mode leaves a hidden marker in the dock so the same rule still applies. The hiding rule is structural and gated on our own marker class, so it can only hide siblings of the shell that are not the shell and not the context ring:
 
 ```css
 :is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default) > *
@@ -188,11 +192,11 @@ While the docked line is on, it replaces the harness's own pills instead of dupl
   :not(:has(svg[viewBox="0 0 14 14"])) { display: none }
 ```
 
-With the line off there is no shell in the dock, so nothing is hidden and the shipped pills are back. The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching; nothing else is ever hidden.
+With both off there is no marker in the dock, so nothing is hidden and the shipped pills are back. The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching; nothing else is ever hidden.
 
 ### The floating card
 
-The floating card is the same line, `position: fixed` on `<body>`, portalled there for the same reason the panel is (inside the dock it would lose to the compose box). It is dragged by its body anywhere in the window; the position is stored in viewport pixels under `dsh.statusbar.floatpos`, so it comes back where it was left. Until it is dragged, its home is the docked bar's above-left corner — the same seat the panel's `above` anchor uses — and it follows the bar as the composer grows. Double-clicking clears the stored position and returns it there; with the status line off there is nothing to hang from, so the fallback home is the bottom-centre seat.
+The floating card is the same line, `position: fixed` on `<body>`, portalled there for the same reason the panel is (inside the dock it would lose to the compose box). It is dragged by its body anywhere in the window; the position is stored in viewport pixels under `dsh.statusbar.floatpos`, so it comes back where it was left. Until it is dragged, its home is the bottom-centre seat, clear of the composer; if the docked line is ever on at the same time (the settings avoid that), the seat becomes the line's above-left corner instead, the same one the panel's `above` anchor uses, and it follows the bar as the composer grows. Double-clicking clears the stored position and returns it home, and the settings page has a **put it back** button for the same thing.
 
 It deliberately has no panel: the chip does not pin, hovering does nothing, and there is no `card`/`board` expansion. The panel belongs to the docked line, which has an anchor to hang it from, so the floating card is unaffected by the card anchor setting, and the board is reachable while the docked line is on.
 

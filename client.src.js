@@ -100,6 +100,14 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-tps.on .sb-tps-hub{animation:sb-tps-pulse 1.15s ease-in-out infinite}' +
       '.dsh-sb-shell [data-sb] .sb-tps-v{font-size:12px;font-weight:600;color:#fff;line-height:1;min-width:3ch;text-align:right}' +
       '.dsh-sb-shell [data-sb] .sb-tps-u{font-size:9px;letter-spacing:.3px;opacity:.55;line-height:1}' +
+      /* Context pressure: a compact fuel gauge with a semantic fill colour. */
+      '.dsh-sb-shell [data-sb] .sb-ctx{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;font-variant-numeric:tabular-nums}' +
+      '.dsh-sb-shell [data-sb] .sb-ctx-bar{display:block;width:22px;height:6px;flex:0 0 auto;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}' +
+      '.dsh-sb-shell [data-sb] .sb-ctx-fill{display:block;height:100%;border-radius:3px;background:var(--sb-accent2);transition:width .45s cubic-bezier(.2,.7,.2,1)}' +
+      '.dsh-sb-shell [data-sb] .sb-ctx.warn .sb-ctx-fill{background:#ffc400}' +
+      '.dsh-sb-shell [data-sb] .sb-ctx.bad .sb-ctx-fill{background:#ff5252}' +
+      '.dsh-sb-shell [data-sb] .sb-ctx-v{font-size:10px;line-height:1;opacity:.78;min-width:3ch;text-align:right}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-ctx-fill{transition:none!important}' +
       '@keyframes sb-tps-pulse{0%,100%{opacity:.4}50%{opacity:1}}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-tps-fill,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-tps-needle{transition:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-tps-hub,.dsh-sb-shell [data-sb][data-sb-lite] .sb-tps-hub{animation:none!important;opacity:1}' +
@@ -541,6 +549,7 @@ window.__ModuleLoader__.load({
     const STORE_COLLAPSE = 'dsh.statusbar.collapse';
     const STORE_STRIP = 'dsh.statusbar.strip';
     const STORE_FLOAT = 'dsh.statusbar.float';
+    const STORE_CONTEXT = 'dsh.statusbar.context';
     const STORE_PHRASES = 'dsh.statusbar.phrases';
     const STORE_FLOATPOS = 'dsh.statusbar.floatpos';
     const STORE_WIDTH = 'dsh.statusbar.width';
@@ -700,6 +709,212 @@ window.__ModuleLoader__.load({
     }
     function readPhrases() {
       return parsePhrases(readStored(STORE_PHRASES, ''));
+    }
+
+    /* The line and the floating card are two presentations of the same strip;
+       drawing both at once is the same line twice. Both ON can only be a state
+       left by an older build, so the docked line wins and the floating copy is
+       switched off. The settings page enforces the same rule on every click. */
+    function readStripModes() {
+      const strip = readStored(STORE_STRIP, SHOW, [SHOW, HIDE]) === SHOW;
+      const floatOn = readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]) === SHOW;
+      if (strip && floatOn) {
+        writeStored(STORE_FLOAT, HIDE);
+        return { strip: SHOW, float: HIDE };
+      }
+      return { strip: strip ? SHOW : HIDE, float: floatOn ? SHOW : HIDE };
+    }
+
+    /**
+     * The flow lane, in one place for the strip and the settings preview: one
+     * 128x17 cell, five skins, so the preview can show the skin being chosen.
+     *
+     * `options`: working, pixel, title, flowSeconds, waveSeconds, termSeconds,
+     * trafficSeconds, liveCars, carCount, onCarIteration.
+     */
+    function flowLane(mode, options) {
+      const working = options.working === true;
+      const pixel = options.pixel === true;
+      const title = options.title || '';
+      const flowSeconds = options.flowSeconds || 2.4;
+
+      /* The water skin is one field of two scrolling swells. */
+      const waveLayer = (tone) =>
+        h('g', { className: 'sb-wave-amp' }, h('g', { className: 'sb-wave-scroll ' + tone }, h('path', { d: WAVE_PATH })));
+      const waterField = h(
+        'svg',
+        { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
+        waveLayer('sb-wave-back'),
+        waveLayer('sb-wave-front'),
+      );
+
+      /* ---- traffic ---------------------------------------------------------
+         Throughput, drawn as a road. Both lanes run left to right; the number of
+         cars and their speed both follow the live token rate, so a busy turn is a
+         busy highway and an idle one is a single car with the road to itself.
+
+         Lane offset rides an SVG transform attribute and motion rides a CSS
+         transform on a child group: a CSS transform on the same element would
+         replace the attribute and drop the car out of its lane. */
+      const carBody = 'M0 6 C0 3.6 2 2.6 5 2.6 L8 .6 L16 .6 L19 2.6 L23 3.2 C25 3.6 25 5.2 25 6 L25 7 L0 7 Z';
+      const carCount = options.carCount || 1;
+      const liveCars = Math.max(1, options.liveCars || 1);
+      const car = (index) =>
+        h(
+          'g',
+          { key: 'car-' + index, className: 'sb-car', transform: 'translate(0 ' + (index % 2 === 0 ? 1 : 10) + ')' },
+          h(
+            'g',
+            {
+              className: 'sb-car-run sb-car-slot-' + index,
+              onAnimationIteration: index >= carCount ? options.onCarIteration : undefined,
+            },
+            h('path', { d: carBody }),
+            h('circle', { className: 'sb-car-wheel', cx: 6, cy: 7.4, r: 1.8 }),
+            h('circle', { className: 'sb-car-wheel', cx: 18, cy: 7.4, r: 1.8 }),
+            h('circle', { className: 'sb-car-light', cx: 23, cy: 4.6, r: 1 }),
+          ),
+        );
+      const trafficField =
+        mode === FLOW_TRAFFIC
+          ? h(
+              'svg',
+              { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
+              h(
+                'g',
+                { className: 'sb-road' },
+                ROAD_DASHES.map((x) => h('rect', { key: x, x: x, y: 9.4, width: 14, height: 1.2, rx: 0.6 })),
+              ),
+              Array.from({ length: liveCars }, (unused, index) => car(index)),
+            )
+          : null;
+
+      if (mode === FLOW_ECG) {
+        return h(
+          'span',
+          {
+            className: 'sb-ecg dsh-sb-flow' + (working ? '' : ' idle'),
+            style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
+            title: title,
+            'aria-hidden': true,
+          },
+          h(
+            'svg',
+            { viewBox: '0 0 128 17', preserveAspectRatio: 'none' },
+            h('polyline', { className: 'sb-ecg-base', points: ECG_PATH }),
+            h('polyline', { className: 'sb-ecg-trace', points: ECG_PATH, pathLength: 100 }),
+          ),
+        );
+      }
+      if (mode === FLOW_WAVE) {
+        return h(
+          'span',
+          {
+            className: 'sb-wave dsh-sb-flow' + (working ? '' : ' idle'),
+            style: { '--sb-wave-dur': (options.waveSeconds || 3).toFixed(2) + 's' },
+            title: title,
+            'aria-hidden': true,
+          },
+          waterField,
+        );
+      }
+      if (mode === FLOW_TERM) {
+        return h(
+          'span',
+          {
+            className: 'sb-term dsh-sb-flow' + (working ? '' : ' idle'),
+            style: { '--sb-term-dur': (options.termSeconds || 3).toFixed(2) + 's' },
+            title: title,
+            'aria-hidden': true,
+          },
+          h(
+            'span',
+            { className: 'sb-term-line' },
+            h('span', { className: 'sb-term-prompt' }, '\$'),
+            h('span', { className: 'sb-term-text' }, TERM_LINE),
+            h('span', { className: 'sb-term-cursor' }, '\u2588'),
+          ),
+        );
+      }
+      if (mode === FLOW_TRAFFIC) {
+        return h(
+          'span',
+          {
+            className: 'sb-traffic dsh-sb-flow' + (working ? '' : ' idle'),
+            style: { '--sb-traffic-dur': (options.trafficSeconds || 3).toFixed(2) + 's' },
+            title: title,
+            'aria-hidden': true,
+          },
+          trafficField,
+        );
+      }
+      return h(
+        'span',
+        {
+          className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
+          style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
+          title: title,
+          'aria-hidden': true,
+        },
+        h('i', null),
+        h('i', null),
+        h('i', null),
+        h('i', null),
+        pixel ? null : h('i', null),
+        pixel ? null : h('i', null),
+        pixel ? null : h('i', null),
+        pixel ? null : h('i', null),
+        h('span', { className: 'sb-flow-gear' }, '\u2699'),
+      );
+    }
+
+    /* The tok/s tachometer. 200 tok/s is the same ceiling the board's activity
+       meter uses, so the gauge's height means speed rather than shape. */
+    function tpsGauge(rate, working, title) {
+      const shown = Math.round(rate);
+      const percent = Math.max(0, Math.min(1, rate / TPS_SCALE));
+      const angle = -90 + percent * 180;
+      return h(
+        'span',
+        { key: 'tps', className: 'dsh-sb-metric sb-tps' + (working ? ' on' : ''), title: title },
+        h(
+          'svg',
+          { className: 'sb-tps-gauge', viewBox: '0 0 30 16', 'aria-hidden': true },
+          h('path', { className: 'sb-tps-track', d: TPS_GAUGE_ARC }),
+          h('path', {
+            className: 'sb-tps-fill',
+            d: TPS_GAUGE_ARC,
+            pathLength: '100',
+            strokeDasharray: (percent * 100).toFixed(1) + ' 100',
+          }),
+          h(
+            'g',
+            { className: 'sb-tps-needle', style: { '--sb-tps-angle': angle.toFixed(1) + 'deg' } },
+            h('line', { x1: '15', y1: '14', x2: '15', y2: '5' }),
+          ),
+          h('circle', { className: 'sb-tps-hub', cx: '15', cy: '14', r: '1.7' }),
+        ),
+        h('span', { className: 'sb-tps-v' }, String(shown)),
+        h('span', { className: 'sb-tps-u' }, 'tok/s'),
+      );
+    }
+
+    /* Context pressure as a compact fuel gauge. The colour is semantic and never
+       themed: a warning that recolours itself stops being a warning. */
+    function contextGauge(percent, title) {
+      const has = typeof percent === 'number' && isFinite(percent);
+      const shown = has ? Math.max(0, Math.min(100, percent)) : 0;
+      const tone = !has ? '' : shown >= 90 ? ' bad' : shown >= 75 ? ' warn' : '';
+      return h(
+        'span',
+        { key: 'ctx', className: 'dsh-sb-metric sb-ctx' + tone, title: title },
+        h(
+          'span',
+          { className: 'sb-ctx-bar', 'aria-hidden': true },
+          h('span', { className: 'sb-ctx-fill', style: { width: shown + '%' } }),
+        ),
+        h('span', { className: 'sb-ctx-v' }, has ? shown + '%' : '\u2014'),
+      );
     }
 
     /** Reduced-motion is the sane default for pixel mode. */
@@ -1009,8 +1224,8 @@ window.__ModuleLoader__.load({
       const [view, setView] = React.useState(() => readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
       /* The board folds down to its summary line; the card has no such state. */
       const [collapsed, setCollapsed] = React.useState(() => readStored(STORE_COLLAPSE, 'off') === 'on');
-      const [strip, setStrip] = React.useState(() => readStored(STORE_STRIP, SHOW, [SHOW, HIDE]));
-      const [floatOn, setFloatOn] = React.useState(() => readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]) === SHOW);
+      const [strip, setStrip] = React.useState(() => readStripModes().strip);
+      const [floatOn, setFloatOn] = React.useState(() => readStripModes().float === SHOW);
       /* null means "the default seat" until the card is dragged for the first
          time; after that it is viewport pixels and persisted. */
       const [floatPos, setFloatPos] = React.useState(readFloatBox);
@@ -1022,6 +1237,11 @@ window.__ModuleLoader__.load({
       const [floatSeat, setFloatSeat] = React.useState(null);
       /* User phrases, one per line. Empty means the built-in vocabulary. */
       const [phrases, setPhrases] = React.useState(readPhrases);
+      /* Opt-in context gauge. Off by default: the shipped composer already has
+         its own ring, so this is a second reading the reader asks for. */
+      const [contextOn, setContextOn] = React.useState(() =>
+        readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]) === SHOW,
+      );
       const stripHidden = strip === HIDE;
       const working = realWorking || demo;
 
@@ -1050,9 +1270,12 @@ window.__ModuleLoader__.load({
           setHeightStep(readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length));
           setView(readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
           setCollapsed(readStored(STORE_COLLAPSE, 'off') === 'on');
-          setStrip(readStored(STORE_STRIP, SHOW, [SHOW, HIDE]));
-          setFloatOn(readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]) === SHOW);
+          const modes = readStripModes();
+          setStrip(modes.strip);
+          setFloatOn(modes.float === SHOW);
           setPhrases(readPhrases());
+          setContextOn(readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]) === SHOW);
+          setFloatPos(readFloatBox());
         };
         window.addEventListener(SETTINGS_EVENT, sync);
         return () => window.removeEventListener(SETTINGS_EVENT, sync);
@@ -1694,138 +1917,19 @@ window.__ModuleLoader__.load({
           )
         : h('span', { className: 'dsh-sb-brand' }, 'DeepSeek Harness');
 
-      /* The lane itself. Four skins, one cell: the strip must not reshuffle
-         when the reader cycles them, so every skin is the same 128x17 box.
-
-         The water skin is one field of two scrolling swells. */
-      const waveLayer = (tone) => h('g', { className: 'sb-wave-amp' }, h('g', { className: 'sb-wave-scroll ' + tone }, h('path', { d: WAVE_PATH })));
-
-      const waterField = h(
-        'svg',
-        { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
-        waveLayer('sb-wave-back'),
-        waveLayer('sb-wave-front'),
-      );
-
-      /* ---- traffic ---------------------------------------------------------
-         Throughput, drawn as a road. Both lanes run left to right; the number of
-         cars and their speed both follow the live token rate, so a busy turn is a
-         busy highway and an idle one is a single car with the road to itself.
-
-         Cars are spaced by fixed per-slot delays (slot i starts i/5 of a cycle
-         after slot 0): even gaps, and every car keeps its own phase when the
-         fleet grows or shrinks. A car being retired finishes its crossing and is
-         dropped on its next loop, off-canvas, instead of vanishing mid-lane.
-
-         Lane offset rides an SVG transform attribute and motion rides a CSS
-         transform on a child group: a CSS transform on the same element would
-         replace the attribute and drop the car out of its lane. */
-      const carBody = 'M0 6 C0 3.6 2 2.6 5 2.6 L8 .6 L16 .6 L19 2.6 L23 3.2 C25 3.6 25 5.2 25 6 L25 7 L0 7 Z';
       const retireCar = () => setLiveCars((previous) => Math.max(carCount, previous - 1));
-      const car = (index) =>
-        h(
-          'g',
-          { key: 'car-' + index, className: 'sb-car', transform: 'translate(0 ' + (index % 2 === 0 ? 1 : 10) + ')' },
-          h(
-            'g',
-            {
-              className: 'sb-car-run sb-car-slot-' + index,
-              onAnimationIteration: index >= carCount ? retireCar : undefined,
-            },
-            h('path', { d: carBody }),
-            h('circle', { className: 'sb-car-wheel', cx: 6, cy: 7.4, r: 1.8 }),
-            h('circle', { className: 'sb-car-wheel', cx: 18, cy: 7.4, r: 1.8 }),
-            h('circle', { className: 'sb-car-light', cx: 23, cy: 4.6, r: 1 }),
-          ),
-        );
-      const trafficField =
-        flowMode === FLOW_TRAFFIC
-          ? h(
-              'svg',
-              { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
-              h(
-                'g',
-                { className: 'sb-road' },
-                ROAD_DASHES.map((x) => h('rect', { key: x, x: x, y: 9.4, width: 14, height: 1.2, rx: 0.6 })),
-              ),
-              Array.from({ length: liveCars }, (unused, index) => car(index)),
-            )
-          : null;
-
-      const lane =
-        flowMode === FLOW_ECG
-          ? h(
-              'span',
-              {
-                className: 'sb-ecg dsh-sb-flow' + (working ? '' : ' idle'),
-                style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                title: flowTitle,
-                'aria-hidden': true,
-              },
-              h(
-                'svg',
-                { viewBox: '0 0 128 17', preserveAspectRatio: 'none' },
-                h('polyline', { className: 'sb-ecg-base', points: ECG_PATH }),
-                h('polyline', { className: 'sb-ecg-trace', points: ECG_PATH, pathLength: 100 }),
-              ),
-            )
-          : flowMode === FLOW_WAVE
-            ? h(
-                'span',
-                {
-                  className: 'sb-wave dsh-sb-flow' + (working ? '' : ' idle'),
-                  style: { '--sb-wave-dur': waveSeconds.toFixed(2) + 's' },
-                  title: flowTitle,
-                  'aria-hidden': true,
-                },
-                waterField,
-              )
-            : flowMode === FLOW_TERM
-              ? h(
-                  'span',
-                  {
-                    className: 'sb-term dsh-sb-flow' + (working ? '' : ' idle'),
-                    style: { '--sb-term-dur': termSeconds.toFixed(2) + 's' },
-                    title: flowTitle,
-                    'aria-hidden': true,
-                  },
-                  h(
-                    'span',
-                    { className: 'sb-term-line' },
-                    h('span', { className: 'sb-term-prompt' }, '\$'),
-                    h('span', { className: 'sb-term-text' }, TERM_LINE),
-                    h('span', { className: 'sb-term-cursor' }, '\u2588'),
-                  ),
-                )
-              : flowMode === FLOW_TRAFFIC
-                ? h(
-                    'span',
-                    {
-                      className: 'sb-traffic dsh-sb-flow' + (working ? '' : ' idle'),
-                      style: { '--sb-traffic-dur': trafficSeconds.toFixed(2) + 's' },
-                      title: flowTitle,
-                      'aria-hidden': true,
-                    },
-                    trafficField,
-                  )
-                : h(
-                  'span',
-                  {
-                    className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
-                    style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                    title: flowTitle,
-                    'aria-hidden': true,
-                  },
-                  h('i', null),
-                  h('i', null),
-                  h('i', null),
-                  h('i', null),
-                  pixel ? null : h('i', null),
-                  pixel ? null : h('i', null),
-                  pixel ? null : h('i', null),
-                  pixel ? null : h('i', null),
-                  h('span', { className: 'sb-flow-gear' }, '\u2699'),
-                );
+      const lane = flowLane(flowMode, {
+        working: working,
+        pixel: pixel,
+        title: flowTitle,
+        flowSeconds: flowSeconds,
+        waveSeconds: waveSeconds,
+        termSeconds: termSeconds,
+        trafficSeconds: trafficSeconds,
+        liveCars: liveCars,
+        carCount: carCount,
+        onCarIteration: retireCar,
+      });
 
 
       const cacheBlocks = cachePercent === null ? 0 : Math.max(0, Math.min(5, Math.round(cachePercent / 20)));
@@ -1863,33 +1967,19 @@ window.__ModuleLoader__.load({
       );
 
       const tpsTitle = t('metric.tps') + ': ' + rateNow + ' tok/s';
-      const tpsMetric = h(
-        'span',
-        { key: 'tps', className: 'dsh-sb-metric sb-tps' + (working ? ' on' : ''), title: tpsTitle },
-        h(
-          'svg',
-          { className: 'sb-tps-gauge', viewBox: '0 0 30 16', 'aria-hidden': true },
-          h('path', { className: 'sb-tps-track', d: TPS_GAUGE_ARC }),
-          h('path', {
-            className: 'sb-tps-fill',
-            d: TPS_GAUGE_ARC,
-            pathLength: '100',
-            strokeDasharray: (tpsPercent * 100).toFixed(1) + ' 100',
-          }),
-          h(
-            'g',
-            { className: 'sb-tps-needle', style: { '--sb-tps-angle': tpsAngle.toFixed(1) + 'deg' } },
-            h('line', { x1: '15', y1: '14', x2: '15', y2: '5' }),
-          ),
-          h('circle', { className: 'sb-tps-hub', cx: '15', cy: '14', r: '1.7' }),
-        ),
-        h('span', { className: 'sb-tps-v' }, String(rateNow)),
-        h('span', { className: 'sb-tps-u' }, 'tok/s'),
-      );
+      const tpsMetric = tpsGauge(rate, working, tpsTitle);
+
+      const ctxTitle =
+        contextPercent === null
+          ? t('metric.ctx') + ': \u2014'
+          : t('metric.ctx') + ': ' + contextPercent + '% (' + compact(occupied) + ' / ' + compact(windowSize) + ')';
+      const ctxGauge = contextOn ? contextGauge(contextPercent, ctxTitle) : null;
 
       const rightGroup = h(
         'div',
         { className: 'sb-group end' },
+        ctxGauge,
+        ctxGauge === null ? null : h('span', { className: 'sb-sep' }, '\u00B7'),
         cachePercent === null
           ? metric('cache', 'dsh-sb-nodata', t('metric.cache.pending'), '\u26A1 \u2014')
           : metric('cache', cacheTone(cachePercent), t('metric.cache') + ' ' + cachePercent + '%', ['\u26A1 ', String(cachePercent), '%', ' ', blockMeter]),
@@ -2353,7 +2443,13 @@ window.__ModuleLoader__.load({
       /* With the line off there is nothing to dock; the floating card carries
          the state on its own. With both off the plugin adds nothing to the
          composer, so the harness's own pills are back in charge. */
-      if (stripHidden) return floatLayer;
+      if (stripHidden) {
+        if (floatLayer === null) return null;
+        /* With no docked shell the harness's own pills would come back beside
+           the floating copy; a hidden marker keeps the same replacement rule
+           working while only the card is on. */
+        return h('div', { className: 'dsh-sb-shell sb-hide-default', style: { display: 'none' } }, floatLayer);
+      }
 
       /* While the line is on it replaces the harness's own pills instead of
          duplicating them; the marker on the shell is what the stylesheet keys on. */
@@ -2376,6 +2472,7 @@ window.__ModuleLoader__.load({
 
     /** Every persisted preference, read as one snapshot. */
     function readPrefs() {
+      const modes = readStripModes();
       return {
         theme: readStored(STORE_THEME, 'deepseek', THEME_IDS),
         lite: readStored(STORE_FX, 'off') === 'on',
@@ -2383,8 +2480,9 @@ window.__ModuleLoader__.load({
         flow: readStored(STORE_FLOW, FLOW_BEADS, FLOW_ORDER),
         anchor: readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]),
         view: readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]),
-        strip: readStored(STORE_STRIP, SHOW, [SHOW, HIDE]),
-        float: readStored(STORE_FLOAT, HIDE, [SHOW, HIDE]),
+        strip: modes.strip,
+        float: modes.float,
+        context: readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]),
         phrases: readStored(STORE_PHRASES, ''),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
@@ -2407,8 +2505,13 @@ window.__ModuleLoader__.load({
       };
       const put = (key, value) => {
         writeStored(key, value);
+        /* Docked and floating are two presentations of one strip; choosing one
+           switches the other off rather than drawing the line twice. */
+        if (key === STORE_STRIP && value === SHOW) writeStored(STORE_FLOAT, HIDE);
+        if (key === STORE_FLOAT && value === SHOW) writeStored(STORE_STRIP, HIDE);
         commit();
       };
+      const resetPosition = () => put(STORE_FLOATPOS, 'null');
 
       const widthValue = WIDTH_STEPS[prefs.widthStep];
       const heightValue = HEIGHT_STEPS[prefs.heightStep];
@@ -2447,9 +2550,26 @@ window.__ModuleLoader__.load({
           ),
         );
 
-      /* A live sample of the strip: same classes, same attributes, no session.
-         It is the only honest way to choose a palette - the swatch is a colour,
-         the preview is the glow. */
+      /* A live sample of the strip: same classes, same attributes, no session,
+         and the same lane and gauge builders the strip itself uses. That is what
+         keeps the preview honest as the reader clicks. */
+      const previewPhrases = parsePhrases(prefs.phrases);
+      const previewPhrase =
+        previewPhrases.length > 0 ? previewPhrases[0] : t('settings.preview.phrase');
+      const previewLane = flowLane(prefs.flow, {
+        working: true,
+        pixel: prefs.pixel,
+        title: '',
+        flowSeconds: 2.6,
+        waveSeconds: 2.9,
+        termSeconds: 2.8,
+        trafficSeconds: 3.1,
+        liveCars: 4,
+        carCount: 4,
+        onCarIteration: undefined,
+      });
+      const previewTps = tpsGauge(42, true, t('metric.tps') + ': 42 tok/s');
+      const previewCtx = prefs.context === SHOW ? contextGauge(32, t('metric.ctx') + ': 32%') : null;
       const preview = h(
         'div',
         { className: 'dsh-sb-shell sb-set-preview', 'aria-hidden': true },
@@ -2475,24 +2595,17 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'sb-group' },
-            h('span', { className: 'sb-status sb-glow' }, t('settings.preview.phrase')),
+            h('span', { className: 'sb-status sb-glow' }, previewPhrase),
             h('span', { className: 'sb-sep' }, '\u00B7'),
-            h(
-              'span',
-              { className: 'sb-flow dsh-sb-flow' },
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
-              h('i', null),
-            ),
+            previewLane,
+            h('span', { className: 'sb-sep' }, '\u00B7'),
+            previewTps,
           ),
           h(
             'div',
             { className: 'sb-group end' },
+            previewCtx,
+            previewCtx === null ? null : h('span', { className: 'sb-sep' }, '\u00B7'),
             h('span', { className: 'dsh-sb-metric sb-ok' }, '\u26A1 99%'),
             h('span', { className: 'sb-sep' }, '\u00B7'),
             h(
@@ -2502,6 +2615,8 @@ window.__ModuleLoader__.load({
               h('span', { className: 'sb-io-sep' }, '/'),
               h('span', { className: 'sb-out' }, h('b', { className: 'sb-out-arrow' }, '\u2193'), h('span', { className: 'sb-io-v' }, '3.4k')),
             ),
+            h('span', { className: 'sb-sep' }, '\u00B7'),
+            h('span', { className: 'dsh-sb-metric dsh-sb-dim' }, '\u23F1 15m'),
           ),
         ),
       );
@@ -2586,6 +2701,34 @@ window.__ModuleLoader__.load({
               choice(t('common.off'), prefs.float === HIDE, () => put(STORE_FLOAT, HIDE), t('float.title.hide')),
             ),
           ),
+          prefs.float === SHOW
+            ? row(
+                t('settings.float.position'),
+                h(
+                  'span',
+                  { className: 'sb-set-choices' },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'sb-set-choice',
+                      title: t('float.reset.title'),
+                      onClick: resetPosition,
+                    },
+                    t('float.reset'),
+                  ),
+                ),
+              )
+            : null,
+          row(
+            t('settings.context'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(t('common.on'), prefs.context === SHOW, () => put(STORE_CONTEXT, SHOW), t('context.title.show')),
+              choice(t('common.off'), prefs.context === HIDE, () => put(STORE_CONTEXT, HIDE), t('context.title.hide')),
+            ),
+          ),
           row(
             t('settings.phrases'),
             h('textarea', {
@@ -2650,6 +2793,8 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_VIEW, VIEW_CARD);
                 writeStored(STORE_STRIP, SHOW);
                 writeStored(STORE_FLOAT, HIDE);
+                writeStored(STORE_CONTEXT, HIDE);
+                writeStored(STORE_FLOATPOS, 'null');
                 writeStored(STORE_PHRASES, '');
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
                 writeStored(STORE_HEIGHT, String(HEIGHT_DEFAULT));
@@ -2766,6 +2911,13 @@ window.__ModuleLoader__.load({
       'float.title.hide': 'hide the floating status card',
       'settings.phrases': 'phrases',
       'phrases.placeholder': 'one phrase per line, e.g. Cogitating / Jitterbugging',
+      'settings.context': 'context gauge',
+      'context.title.show': 'show the context window gauge on the strip',
+      'context.title.hide': 'hide the context window gauge',
+      'metric.ctx': 'context window',
+      'settings.float.position': 'card position',
+      'float.reset': 'put it back',
+      'float.reset.title': 'return the floating card to its seat above the line',
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
       'size.width': 'w',
@@ -2887,6 +3039,13 @@ window.__ModuleLoader__.load({
       'float.title.hide': '隐藏浮动的状态卡片',
       'settings.phrases': '自定义短语',
       'phrases.placeholder': '每行一句，随意添加，例如：Cogitating / Jitterbugging',
+      'settings.context': '上下文仪表',
+      'context.title.show': '在状态条上显示上下文窗口仪表',
+      'context.title.hide': '隐藏上下文窗口仪表',
+      'metric.ctx': '上下文窗口',
+      'settings.float.position': '卡片位置',
+      'float.reset': '放回原处',
+      'float.reset.title': '把浮动卡片放回状态条上方',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
       'size.width': '宽',
