@@ -83,6 +83,26 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-step-more{font-size:9.5px;font-weight:700;opacity:.55;margin-left:1px}' +
       '@keyframes sb-step-pulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.4);opacity:1}}' +
       '@keyframes sb-step-pop{0%{transform:scale(.35)}60%{transform:scale(1.35)}100%{transform:scale(1)}}' +
+      /* ---- tok/s -------------------------------------------------------------
+         The number the lane is drawing, written down, plus a tachometer that
+         fills toward 200 tok/s. The arc is a stroke-dasharray on a 180-degree
+         path; the needle is a rotated line. Both ease, so a figure that moves a
+         few tok/s still reads as motion. Pixel mode drops the easing and keeps
+         the reading, because a smooth sweep is exactly what it is there to
+         avoid. */
+      '.dsh-sb-shell [data-sb] .sb-tps{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;font-variant-numeric:tabular-nums}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-gauge{display:block;width:30px;height:16px;flex:0 0 auto;overflow:visible}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-track{fill:none;stroke:rgba(255,255,255,.14);stroke-width:2;stroke-linecap:round}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-fill{fill:none;stroke:var(--sb-accent2);stroke-width:2;stroke-linecap:round;transition:stroke-dasharray .5s cubic-bezier(.2,.7,.2,1)}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-needle{transform-box:view-box;transform-origin:15px 14px;transform:rotate(var(--sb-tps-angle,0deg));transition:transform .5s cubic-bezier(.2,.7,.2,1)}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-needle line{stroke:var(--sb-accent);stroke-width:1;stroke-linecap:round}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-hub{fill:var(--sb-accent)}' +
+      '.dsh-sb-shell [data-sb] .sb-tps.on .sb-tps-hub{animation:sb-tps-pulse 1.15s ease-in-out infinite}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-v{font-size:12px;font-weight:600;color:#fff;line-height:1;min-width:3ch;text-align:right}' +
+      '.dsh-sb-shell [data-sb] .sb-tps-u{font-size:9px;letter-spacing:.3px;opacity:.55;line-height:1}' +
+      '@keyframes sb-tps-pulse{0%,100%{opacity:.4}50%{opacity:1}}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-tps-fill,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-tps-needle{transition:none!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-tps-hub,.dsh-sb-shell [data-sb][data-sb-lite] .sb-tps-hub{animation:none!important;opacity:1}' +
       /* Size steppers in the card: label | - | value | + for each axis. */
       '.dsh-sb-shell [data-sb] .sb-size{display:flex;align-items:center;gap:5px;margin-top:7px;pointer-events:auto;font-size:9.5px}' +
       '.dsh-sb-shell [data-sb] .sb-size .sb-tool-k{letter-spacing:.6px}' +
@@ -461,6 +481,13 @@ window.__ModuleLoader__.load({
        the render test asserts they still agree. */
     const CAR_SLOTS = 5;
     const TERM_LINE = 'dsh status --watch';
+    /* The tok/s readout is a tiny tachometer: a 180-degree arc filling toward
+       200 tok/s (the same ceiling the board's activity meter uses), a needle
+       that follows it, and the number. Arc and needle ease toward a new reading
+       instead of snapping, which is what makes a slowly drifting session
+       average read as motion. */
+    const TPS_GAUGE_ARC = 'M4,14 A11,11 0 0 1 26,14';
+    const TPS_SCALE = 200;
     const ROAD_DASHES = (function () {
       const out = [];
       for (let x = 4; x < 256; x += 32) out.push(x);
@@ -1499,6 +1526,13 @@ window.__ModuleLoader__.load({
       const wallMs = num(stats && stats.llmMs) + num(stats && stats.toolMs);
       const rate = decodeMs > 0 ? (decodeTokens / decodeMs) * 1000 : 0;
 
+      /* The tachometer and the number are the same session decode rate the card
+         reports. The gauge position is clamped, so a very fast session simply
+         pins the needle rather than wrapping it. */
+      const rateNow = Math.round(rate);
+      const tpsPercent = Math.max(0, Math.min(1, rate / TPS_SCALE));
+      const tpsAngle = -90 + tpsPercent * 180;
+
       const uncachedIn = num(usage && usage.uncachedInputTokens);
       const outTokens = num(usage && usage.outputTokens);
       const cacheRead = num(usage && usage.cacheReadTokens);
@@ -1828,6 +1862,31 @@ window.__ModuleLoader__.load({
         ),
       );
 
+      const tpsTitle = t('metric.tps') + ': ' + rateNow + ' tok/s';
+      const tpsMetric = h(
+        'span',
+        { key: 'tps', className: 'dsh-sb-metric sb-tps' + (working ? ' on' : ''), title: tpsTitle },
+        h(
+          'svg',
+          { className: 'sb-tps-gauge', viewBox: '0 0 30 16', 'aria-hidden': true },
+          h('path', { className: 'sb-tps-track', d: TPS_GAUGE_ARC }),
+          h('path', {
+            className: 'sb-tps-fill',
+            d: TPS_GAUGE_ARC,
+            pathLength: '100',
+            strokeDasharray: (tpsPercent * 100).toFixed(1) + ' 100',
+          }),
+          h(
+            'g',
+            { className: 'sb-tps-needle', style: { '--sb-tps-angle': tpsAngle.toFixed(1) + 'deg' } },
+            h('line', { x1: '15', y1: '14', x2: '15', y2: '5' }),
+          ),
+          h('circle', { className: 'sb-tps-hub', cx: '15', cy: '14', r: '1.7' }),
+        ),
+        h('span', { className: 'sb-tps-v' }, String(rateNow)),
+        h('span', { className: 'sb-tps-u' }, 'tok/s'),
+      );
+
       const rightGroup = h(
         'div',
         { className: 'sb-group end' },
@@ -1889,6 +1948,8 @@ window.__ModuleLoader__.load({
             ),
             h('span', { className: 'sb-sep' }, '\u00B7'),
             lane,
+            h('span', { className: 'sb-sep' }, '\u00B7'),
+            tpsMetric,
             stepBoxes === null ? null : h('span', { className: 'sb-sep' }, '\u00B7'),
             stepBoxes,
           ),
@@ -2632,6 +2693,7 @@ window.__ModuleLoader__.load({
       'metric.in': 'prompt tokens sent to the model, excluding cache hits',
       'metric.out': 'tokens the model has returned this session',
       'metric.wall': 'model plus tool wall time this session',
+      'metric.tps': 'decode rate this session',
       'card.title': 'status bar',
       'card.state': 'state',
       'card.turns': 'turns / steps',
@@ -2752,6 +2814,7 @@ window.__ModuleLoader__.load({
       'metric.in': '发给模型的未缓存提示词 token',
       'metric.out': '本会话模型已返回的 token',
       'metric.wall': '本会话模型与工具耗时',
+      'metric.tps': '本会话解码速率',
       'card.title': '状态栏',
       'card.state': '状态',
       'card.turns': '轮次 / 步数',

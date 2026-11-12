@@ -3,9 +3,9 @@
 A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), offered in two places: a bar docked under the composer (which replaces the harness's own pills line while it is on) and a floating card you can drag anywhere. Each has its own switch, so either alone, both, or neither are valid.
 
 ```
-✻ ◇ deepseek-v4.1-flash · ✦ Flibbertigibbeting...  · •••••••• · ▣▣◧▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
-✻ ◇ deepseek-v4.1-flash · ✦ Crunched for 4s        · •••••••• · ▣▣▣▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
-✻ ◇ deepseek-v4.1-flash · ◌ in the ether Zzzz      · ••••••••           ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ✦ Flibbertigibbeting...  · •••••••• · 42 tok/s · ▣▣◧▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ✦ Crunched for 4s        · •••••••• · 42 tok/s · ▣▣▣▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ◌ in the ether Zzzz      · •••••••• · 42 tok/s           ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
 ```
 
 The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. The chip names the model that is actually running, with a family mark; the agent's own checklist appears beside the flow lane as one box per step. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter. A `demo` toggle in the card plays the whole working state on demand, so you can look at the motion without spending a prompt, and the card carries `w` / `h` steppers that resize the strip where you want it.
@@ -77,7 +77,7 @@ Everything comes from session projections — no polling, no client-side folding
 
 | Projection | Used for |
 |---|---|
-| `sessionStats` | turns, steps, `decodeTokens / decodeMs` → tok/s (drives bead speed), `llmMs + toolMs` → wall time |
+| `sessionStats` | turns, steps, `decodeTokens / decodeMs` → tok/s (drives bead speed and the strip's tok/s tachometer), `llmMs + toolMs` → wall time |
 | `tokenUsage` | cache-hit % (`cacheRead / promptSide`), the `↑in / ↓out` split (uncached input, output), and the card's billed total (`uncached + output + cacheRead + cacheWrite`) |
 | `contextPressure` | `projectedTokens ?? pressureTokens` / `contextWindow` → ctx %, clamped at 100 (card only) |
 | `contextBreakdown` | surface composition, shown in the card |
@@ -87,6 +87,10 @@ Everything comes from session projections — no polling, no client-side folding
 Busy state comes from `useSessionStatus` — the session status stream, never token activity — so the breath cannot flicker idle between tool calls.
 
 `modelSelection` and `todos` are optional: a host that does not publish them gets the plain `DeepSeek Harness` chip and no boxes, never a blank chip or a crash. Everything is shape-checked before it is rendered.
+
+### The tok/s tachometer
+
+The strip writes down the figure the lane is drawing: `decodeTokens / decodeMs` for the session, next to a 30×16 tachometer. The arc fills toward 200 tok/s — the same ceiling the board's activity meter uses — and the needle points at the same value, so the gauge's height means speed rather than shape. A very fast session pins the needle to the right instead of wrapping it. Arc and needle ease toward a new reading (0.5 s) instead of snapping; pixel mode drops that easing, since a smooth sweep is the thing it is there to avoid. The number is the reading; the gauge is its echo.
 
 ## Interactions
 
