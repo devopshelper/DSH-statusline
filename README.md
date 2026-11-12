@@ -108,7 +108,7 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | drag the card header | moves the card anywhere; double-click the header to put it back |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.defaultbar"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.defaultbar"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
 ## The settings page
 
@@ -117,7 +117,7 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), panel view, the default bar, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
+| edits | palette (12), panel view, both bar switches, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
 | preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
@@ -161,22 +161,31 @@ The switch lives in the card header rather than the tool row because it changes 
 
 The meters are twenty blocks of five percent. Activity is scaled against 200 tok/s because that is the top of the range a person can still read at a glance; cache and context are already percentages.
 
-### The default bar
+### Two bars, two switches
 
-The harness draws its own status pills under ours. In board view that is the same six figures twice, so **default bar: board only** hides the harness's pills while the board is open and leaves them alone everywhere else; `always show` keeps them regardless. Both live in Settings → Plugins.
+The harness draws its own pills line under ours, and ours is a line of its own. Each is switched independently in Settings → Plugins:
 
-The rule is structural and gated on our own marker class, so it can only ever hide siblings of the shell that are not the shell and not the context ring:
+| switch | off means |
+|---|---|
+| **harness bar** | the harness's own pills line is hidden; ours stays |
+| **status line** | our line is hidden and the dock keeps only a small pill — the chip and a state dot — so the panel still has somewhere to open from |
+
+Those are the two rows you can see at the composer: hiding one never hides the other, and both are persisted.
+
+The hiding rule is structural and gated on our own marker class, so it can only ever hide siblings of the shell that are not the shell and not the context ring:
 
 ```css
 :is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default) > *
-  :not(.dsh-sb-shell)
-  :not(:has(.dsh-sb-shell))
+  :not(.dsh-sb-shell)          /* our shell itself */
+  :not(:has(.dsh-sb-shell))    /* whatever wrapper holds it */
   :not(:has(svg[viewBox="0 0 14 14"])) { display: none }
 ```
 
-The first two exclusions are not the same test: `:not(.dsh-sb-shell)` protects the shell itself, `:not(:has(.dsh-sb-shell))` protects whatever wrapper holds it. `:has()` only looks at descendants, so the shell itself never matches the second one — an earlier version omitted the first and hid the strip along with the pills.
+The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching and the pills come back; nothing else is ever hidden.
 
-If the owner restructures the dock the selector stops matching and the pills come back — the failure mode is "unchanged", not "something else hidden".
+### The panel on its own
+
+With the status line off, the panel stops being a hover card. It opens from the pill, cannot be hovered shut (there is no strip to return to), and its dragged position is **persisted** in `dsh.statusbar.floatpos` — docked panels do not keep a position, because theirs belongs to the strip and would drift away from it on the next measure. Double-clicking the panel header clears the stored position.
 
 ## Card placement
 
@@ -308,6 +317,8 @@ Toggle it in the card (`pixel`). It persists in `localStorage["dsh.statusbar.pix
 | `water` scroll | continuous, two layers | `steps(8)` per wavelength, front glow removed |
 
 The toggles compose: `pixel` reduces *how* it moves, `fx off` (lite) removes the whole-surface effects entirely, and the lane skin is orthogonal to both.
+
+`pixel` reaches the panel as well: inside it, animations and transitions are switched off entirely and the 44px drop shadow becomes a flat 14px one, because a moving card with a large blurred shadow is a full-card repaint every frame — the expensive thing on RDP. Dragging is coalesced for the same reason: one update per animation frame normally, one per ~20 a second in pixel mode, since every pointer event otherwise re-renders the strip too.
 
 ## Build
 

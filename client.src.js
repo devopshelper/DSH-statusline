@@ -218,6 +218,23 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-card.board.collapsed .dsh-sb-card-head{padding-bottom:0;border-bottom:0}' +
       '.dsh-sb-shell [data-sb] .sb-collapse{flex:0 0 auto;width:14px;padding:0;border:0;background:transparent;color:rgba(150,170,190,.8);font-size:8px;line-height:1;cursor:pointer}' +
       '.dsh-sb-shell [data-sb] .sb-collapse:hover{color:#fff}' +
+      /* ---- the handle -------------------------------------------------------
+         With the line off, this pill is all that is left in the dock: the chip
+         that opens the panel, a state dot, and nothing else. It is the floating
+         panel's anchor, not a status line. */
+      '.dsh-sb-shell.sb-shell-handle{width:auto;flex:0 0 auto;margin:2px 0}' +
+      '.dsh-sb-shell [data-sb].sb-handle-root{display:inline-flex;width:auto;max-width:none;padding:2px 9px 2px 4px;border:1px solid rgba(var(--sb-glow),.28);border-radius:999px;background:#000;box-shadow:none;animation:none!important}' +
+      '.dsh-sb-shell [data-sb].sb-handle-root .sb-handle{display:inline-flex;align-items:center;gap:6px}' +
+      '.dsh-sb-shell [data-sb] .sb-handle-dot{width:5px;height:5px;border-radius:50%;background:rgba(150,170,190,.5)}' +
+      '.dsh-sb-shell [data-sb] .sb-handle-dot.on{background:var(--sb-accent);box-shadow:0 0 6px rgba(var(--sb-glow),.8)}' +
+      /* ---- pixel mode reaches the panel too ---------------------------------
+         Low-frame mode used to stop at the strip. On RDP the panel's own fade-in
+         and the swatch/tool hover transitions are visible cost for no benefit,
+         and the 44px shadow is a full-card repaint every time it moves. Flat
+         shadow, no animation, no transition - the panel stops being smooth on
+         purpose, which is the whole point of the switch. */
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card *{animation:none!important;transition:none!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card{box-shadow:0 6px 14px rgba(0,0,0,.95)}' +
       /* ---- hiding the harness's own pills -----------------------------------
          Structural, and gated on our own marker class. Three exclusions, and the
          first two are not the same test: `:not(.dsh-sb-shell)` keeps the shell
@@ -485,6 +502,8 @@ window.__ModuleLoader__.load({
     const STORE_VIEW = 'dsh.statusbar.view';
     const STORE_COLLAPSE = 'dsh.statusbar.collapse';
     const STORE_DEFAULTBAR = 'dsh.statusbar.defaultbar';
+    const STORE_STRIP = 'dsh.statusbar.strip';
+    const STORE_FLOATPOS = 'dsh.statusbar.floatpos';
     const STORE_WIDTH = 'dsh.statusbar.width';
     const STORE_HEIGHT = 'dsh.statusbar.height';
 
@@ -508,11 +527,12 @@ window.__ModuleLoader__.load({
        always had, and a board that gives the numbers room. */
     const VIEW_CARD = 'card';
     const VIEW_BOARD = 'board';
-    /* The harness draws its own pills line under ours. In board view it says the
-       same things twice, so the default is to hide it there - and to leave it
-       alone everywhere else, because the compact card does not repeat it. */
-    const DEFAULTBAR_BOARD = 'board';
-    const DEFAULTBAR_KEEP = 'keep';
+    /* The harness draws its own pills line under ours; our strip is a line of its
+       own. Each can be switched off independently. With our line off the panel
+       stops being a hover card and becomes its own floating window, opened from
+       a small chip and remembering where it was left. */
+    const SHOW = 'show';
+    const HIDE = 'hide';
     const ANCHOR_ABOVE = 'above';
     const ANCHOR_CORNER = 'corner';
     const CARD_W = 300;
@@ -822,10 +842,41 @@ window.__ModuleLoader__.load({
     /** Only shown if the live render throws; a blank dock cell would be silent. */
     function renderFallback(error) {
       const message = error instanceof Error ? error.message : String(error);
+      /* With the line switched off the panel still has to be reachable, so the
+         same chip stays behind as a small pill. It is the anchor the floating
+         panel measures against; closing the panel leaves the pill, which is what
+         makes the panel feel like its own window rather than a tooltip. */
+      if (stripHidden) {
+        const handle = h(
+          'div',
+          {
+            'data-sb': '',
+            'data-sb-theme': theme,
+            'data-sb-state': working ? 'work' : 'idle',
+            className: 'sb-handle-root',
+            ref: barRef,
+            role: 'group',
+            'aria-label': t('bar.label') + ': ' + stateLabel,
+          },
+          h(
+            'div',
+            { className: 'sb-handle' },
+            chip,
+            h('span', { className: 'sb-handle-dot' + (working ? ' on' : ''), 'aria-hidden': true }),
+          ),
+        );
+        return h(
+          'div',
+          { className: 'dsh-sb-shell sb-shell-handle' + (hideDefaultBar ? ' sb-hide-default' : '') },
+          handle,
+          cardLayer,
+        );
+      }
+
       /* The marker the stylesheet keys on. It sits on our shell rather than on
          the dock, because the dock is not ours to touch: the rule hides the
          dock's other children only while this class is present. */
-      const hideDefaultBar = view === VIEW_BOARD && defaultBar === DEFAULTBAR_BOARD;
+      stripHiddenRef.current = stripHidden;
 
       return h(
         'div',
@@ -915,13 +966,17 @@ window.__ModuleLoader__.load({
       const [view, setView] = React.useState(() => readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
       /* The board folds down to its summary line; the card has no such state. */
       const [collapsed, setCollapsed] = React.useState(() => readStored(STORE_COLLAPSE, 'off') === 'on');
-      const [defaultBar, setDefaultBar] = React.useState(() => readStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD, [DEFAULTBAR_BOARD, DEFAULTBAR_KEEP]));
+      const [defaultBar, setDefaultBar] = React.useState(() => readStored(STORE_DEFAULTBAR, SHOW, [SHOW, HIDE]));
+      const [strip, setStrip] = React.useState(() => readStored(STORE_STRIP, SHOW, [SHOW, HIDE]));
+      const stripHidden = strip === HIDE;
+      const hideDefaultBar = defaultBar === HIDE;
       const working = realWorking || demo;
 
       const barRef = React.useRef(null);
       const splashRef = React.useRef(null);
       const cardRef = React.useRef(null);
       const boxRef = React.useRef(null);
+      const stripHiddenRef = React.useRef(false);
       const dragRef = React.useRef(null);
       const closeTimer = React.useRef(0);
       const workStart = React.useRef(0);
@@ -942,7 +997,8 @@ window.__ModuleLoader__.load({
           setHeightStep(readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length));
           setView(readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
           setCollapsed(readStored(STORE_COLLAPSE, 'off') === 'on');
-          setDefaultBar(readStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD, [DEFAULTBAR_BOARD, DEFAULTBAR_KEEP]));
+          setDefaultBar(readStored(STORE_DEFAULTBAR, SHOW, [SHOW, HIDE]));
+          setStrip(readStored(STORE_STRIP, SHOW, [SHOW, HIDE]));
         };
         window.addEventListener(SETTINGS_EVENT, sync);
         return () => window.removeEventListener(SETTINGS_EVENT, sync);
@@ -1033,6 +1089,14 @@ window.__ModuleLoader__.load({
         setCardBox(next);
       }, []);
 
+      /* The standalone panel reopens where it was left. Docked, the offset stays
+         session-only - it is expressed against a strip that moves. */
+      React.useEffect(() => {
+        if (!cardOpen || !stripHidden || drag !== null) return;
+        const stored = readFloatPos();
+        if (stored !== null) setDrag(stored);
+      }, [cardOpen, stripHidden]);
+
       React.useEffect(() => {
         if (!cardOpen) return () => {};
         measureCard();
@@ -1065,7 +1129,26 @@ window.__ModuleLoader__.load({
          untransformed box, so they never creep. */
       React.useEffect(() => {
         if (!dragging) return () => {};
-        const move = (event) => {
+        /* Pointer events arrive faster than the panel needs to move, and every
+           one of them re-renders the strip as well. Coalesce them: one update
+           per frame normally, one per ~20 frames a second when pixel mode is on.
+           On RDP the render is the expensive part, not the pointer maths. */
+        let queued = 0;
+        let queuedIsFrame = false;
+        let pending = null;
+        const cancelQueued = () => {
+          if (queued === 0) return;
+          if (queuedIsFrame && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(queued);
+          else window.clearTimeout(queued);
+          queued = 0;
+          queuedIsFrame = false;
+        };
+        const flush = () => {
+          queued = 0;
+          queuedIsFrame = false;
+          const event = pending;
+          pending = null;
+          if (event === null) return;
           const base = dragRef.current;
           if (base === null) return;
           const loX = 6 - base.left0;
@@ -1073,24 +1156,53 @@ window.__ModuleLoader__.load({
           const loY = 6 - base.top0;
           const hiY = window.innerHeight - 6 - base.top0 - base.h;
           const clamp = (value, lo, hi) => Math.max(Math.min(lo, hi), Math.min(Math.max(lo, hi), value));
-          setDrag({
+          const next = {
             dx: clamp(base.dx0 + event.clientX - base.sx, loX, hiX),
             dy: clamp(base.dy0 + event.clientY - base.sy, loY, hiY),
-          });
+          };
+          dragRef.last = next;
+          setDrag(next);
+        };
+        const schedule = () => {
+          if (queued !== 0) return;
+          if (pixel) {
+            queued = window.setTimeout(flush, 48);
+            return;
+          }
+          if (typeof window.requestAnimationFrame === 'function') {
+            queued = window.requestAnimationFrame(flush);
+            queuedIsFrame = true;
+            return;
+          }
+          queued = window.setTimeout(flush, 16);
+        };
+        const move = (event) => {
+          pending = event;
+          schedule();
         };
         const stop = () => {
+          cancelQueued();
+          pending = null;
+          const base = dragRef.current;
           dragRef.current = null;
           setDragging(false);
+          /* Only the standalone panel keeps a position: docked, it belongs to the
+             strip and would drift away from it on the next measure. */
+          if (base !== null && stripHiddenRef.current && dragRef.last !== undefined) {
+            writeStored(STORE_FLOATPOS, JSON.stringify({ dx: dragRef.last.dx, dy: dragRef.last.dy }));
+          }
         };
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', stop);
         window.addEventListener('pointercancel', stop);
         return () => {
+          cancelQueued();
+          pending = null;
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', stop);
           window.removeEventListener('pointercancel', stop);
         };
-      }, [dragging]);
+      }, [dragging, pixel]);
 
       React.useEffect(
         () => () => {
@@ -1192,6 +1304,20 @@ window.__ModuleLoader__.load({
         announceSettings();
       };
 
+      const toggleStrip = () => {
+        const next = strip === HIDE ? SHOW : HIDE;
+        setStrip(next);
+        writeStored(STORE_STRIP, next);
+        announceSettings();
+      };
+
+      const toggleDefaultBar = () => {
+        const next = defaultBar === HIDE ? SHOW : HIDE;
+        setDefaultBar(next);
+        writeStored(STORE_DEFAULTBAR, next);
+        announceSettings();
+      };
+
       const toggleView = () => {
         const next = view === VIEW_BOARD ? VIEW_CARD : VIEW_BOARD;
         setView(next);
@@ -1230,7 +1356,22 @@ window.__ModuleLoader__.load({
         setPinned(true);
         setDragging(true);
       };
-      const resetDrag = () => setDrag(null);
+      /* Standalone panels remember where they were dragged to; a docked panel
+         cannot, because its position is the strip's. */
+      const readFloatPos = () => {
+        try {
+          const parsed = JSON.parse(readStored(STORE_FLOATPOS, 'null'));
+          if (parsed === null || typeof parsed !== 'object') return null;
+          if (typeof parsed.dx !== 'number' || typeof parsed.dy !== 'number') return null;
+          return { dx: parsed.dx, dy: parsed.dy };
+        } catch (error) {
+          return null;
+        }
+      };
+      const resetDrag = () => {
+        setDrag(null);
+        writeStored(STORE_FLOATPOS, 'null');
+      };
 
       /* ---- real figures, from the same projections the shipped cells read ---- */
       const turns = num(stats && stats.turns);
@@ -1920,6 +2061,9 @@ window.__ModuleLoader__.load({
         document.body !== null &&
         document.body !== undefined;
 
+      /* Standalone, the panel cannot be hovered shut: there is no strip to
+         return to, so an opened panel is pinned until it is closed. */
+      void 0;
       const cardLayer =
         !canPortal || ReactDOM === null
           ? card
@@ -1953,10 +2097,41 @@ window.__ModuleLoader__.load({
               document.body,
             );
 
+      /* With the line switched off the panel still has to be reachable, so the
+         same chip stays behind as a small pill. It is the anchor the floating
+         panel measures against; closing the panel leaves the pill, which is what
+         makes the panel feel like its own window rather than a tooltip. */
+      if (stripHidden) {
+        const handle = h(
+          'div',
+          {
+            'data-sb': '',
+            'data-sb-theme': theme,
+            'data-sb-state': working ? 'work' : 'idle',
+            className: 'sb-handle-root',
+            ref: barRef,
+            role: 'group',
+            'aria-label': t('bar.label') + ': ' + stateLabel,
+          },
+          h(
+            'div',
+            { className: 'sb-handle' },
+            chip,
+            h('span', { className: 'sb-handle-dot' + (working ? ' on' : ''), 'aria-hidden': true }),
+          ),
+        );
+        return h(
+          'div',
+          { className: 'dsh-sb-shell sb-shell-handle' + (hideDefaultBar ? ' sb-hide-default' : '') },
+          handle,
+          cardLayer,
+        );
+      }
+
       /* The marker the stylesheet keys on. It sits on our shell rather than on
          the dock, because the dock is not ours to touch: the rule hides the
          dock's other children only while this class is present. */
-      const hideDefaultBar = view === VIEW_BOARD && defaultBar === DEFAULTBAR_BOARD;
+      stripHiddenRef.current = stripHidden;
 
       return h(
         'div',
@@ -2012,7 +2187,8 @@ window.__ModuleLoader__.load({
         flow: readStored(STORE_FLOW, FLOW_BEADS, FLOW_ORDER),
         anchor: readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]),
         view: readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]),
-        defaultBar: readStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD, [DEFAULTBAR_BOARD, DEFAULTBAR_KEEP]),
+        defaultBar: readStored(STORE_DEFAULTBAR, SHOW, [SHOW, HIDE]),
+        strip: readStored(STORE_STRIP, SHOW, [SHOW, HIDE]),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
       };
@@ -2200,18 +2376,17 @@ window.__ModuleLoader__.load({
             h(
               'span',
               { className: 'sb-set-choices' },
-              choice(
-                t('defaultBar.board'),
-                prefs.defaultBar === DEFAULTBAR_BOARD,
-                () => put(STORE_DEFAULTBAR, DEFAULTBAR_BOARD),
-                t('defaultBar.title.board'),
-              ),
-              choice(
-                t('defaultBar.keep'),
-                prefs.defaultBar === DEFAULTBAR_KEEP,
-                () => put(STORE_DEFAULTBAR, DEFAULTBAR_KEEP),
-                t('defaultBar.title.keep'),
-              ),
+              choice(t('common.on'), prefs.defaultBar === SHOW, () => put(STORE_DEFAULTBAR, SHOW), t('defaultBar.title.show')),
+              choice(t('common.off'), prefs.defaultBar === HIDE, () => put(STORE_DEFAULTBAR, HIDE), t('defaultBar.title.hide')),
+            ),
+          ),
+          row(
+            t('settings.strip'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(t('common.on'), prefs.strip === SHOW, () => put(STORE_STRIP, SHOW), t('strip.title.show')),
+              choice(t('common.off'), prefs.strip === HIDE, () => put(STORE_STRIP, HIDE), t('strip.title.hide')),
             ),
           ),
           row(
@@ -2265,7 +2440,8 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_FLOW, FLOW_BEADS);
                 writeStored(STORE_ANCHOR, ANCHOR_ABOVE);
                 writeStored(STORE_VIEW, VIEW_CARD);
-                writeStored(STORE_DEFAULTBAR, DEFAULTBAR_BOARD);
+                writeStored(STORE_DEFAULTBAR, SHOW);
+                writeStored(STORE_STRIP, SHOW);
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
                 writeStored(STORE_HEIGHT, String(HEIGHT_DEFAULT));
                 commit();
@@ -2369,11 +2545,15 @@ window.__ModuleLoader__.load({
       'view.title.collapse': 'fold the board down to its summary line',
       'view.title.expand': 'unfold the board',
       'settings.panel': 'panel',
-      'settings.defaultBar': 'default bar',
-      'defaultBar.board': 'board only',
-      'defaultBar.keep': 'always show',
-      'defaultBar.title.board': "hide the harness's own status pills while the board is open",
-      'defaultBar.title.keep': "always keep the harness's own status pills",
+      'common.on': 'on',
+      'common.off': 'off',
+      'settings.defaultBar': 'harness bar',
+      'settings.strip': 'status line',
+      'settings.panel': 'panel',
+      'defaultBar.title.show': "show the harness's own status pills",
+      'defaultBar.title.hide': "hide the harness's own status pills",
+      'strip.title.show': 'show the status line under the composer',
+      'strip.title.hide': 'hide the status line; the panel stays, floating on its own',
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
       'size.width': 'w',
@@ -2483,11 +2663,15 @@ window.__ModuleLoader__.load({
       'view.title.collapse': '把面板折叠成一行摘要',
       'view.title.expand': '展开面板',
       'settings.panel': '面板',
-      'settings.defaultBar': '默认状态栏',
-      'defaultBar.board': '仅在面板时隐藏',
-      'defaultBar.keep': '始终显示',
-      'defaultBar.title.board': '打开面板视图时隐藏 Harness 自带的状态栏',
-      'defaultBar.title.keep': '始终保留 Harness 自带的状态栏',
+      'common.on': '开',
+      'common.off': '关',
+      'settings.defaultBar': 'Harness 状态栏',
+      'settings.strip': '状态条',
+      'settings.panel': '面板',
+      'defaultBar.title.show': '显示 Harness 自带的状态栏',
+      'defaultBar.title.hide': '隐藏 Harness 自带的状态栏',
+      'strip.title.show': '显示输入框下方的状态条',
+      'strip.title.hide': '隐藏状态条；面板会独立浮动保留',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
       'size.width': '宽',
