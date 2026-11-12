@@ -203,7 +203,44 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-card.corner{left:auto;right:100%;bottom:calc(100% + 5px);border-bottom-right-radius:3px}' +
       '.dsh-sb-shell [data-sb] .sb-card.corner::after{left:auto;right:11px}' +
       '.dsh-sb-shell [data-sb] .sb-card.dragging{animation:none;cursor:grabbing}' +
-      '.dsh-sb-shell [data-sb] .dsh-sb-card-head{cursor:grab;touch-action:none}' +
+      /* The header carries the title and the panel switch. */
+      '.dsh-sb-shell [data-sb] .dsh-sb-card-head{display:flex;align-items:center;gap:8px;cursor:grab;touch-action:none}' +
+      '.dsh-sb-shell [data-sb] .sb-head-title{flex:1 1 auto;min-width:0}' +
+      '.dsh-sb-shell [data-sb] .sb-view{flex:0 0 auto;padding:0 6px;border:1px solid rgba(255,255,255,.18);border-radius:5px;background:transparent;color:rgba(150,170,190,.95);font:inherit;font-size:9px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer}' +
+      '.dsh-sb-shell [data-sb] .sb-view:hover{border-color:rgba(var(--sb-glow),.65);color:#fff}' +
+      /* ---- board layout ------------------------------------------------------
+         A second panel shape over the same numbers: a summary line, then three
+         columns. Only the width changes between the two layouts, so the floating
+         layer needs nothing new - it measures the card as it renders. */
+      '.dsh-sb-shell [data-sb] .sb-card.board{width:680px}' +
+      '.dsh-sb-shell [data-sb] .sb-card.board .dsh-sb-card-head{padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.08)}' +
+      '.dsh-sb-shell [data-sb] .sb-card.board.collapsed{width:auto;min-width:340px;max-width:min(680px,calc(100vw - 28px))}' +
+      '.dsh-sb-shell [data-sb] .sb-card.board.collapsed .dsh-sb-card-head{padding-bottom:0;border-bottom:0}' +
+      '.dsh-sb-shell [data-sb] .sb-collapse{flex:0 0 auto;width:14px;padding:0;border:0;background:transparent;color:rgba(150,170,190,.8);font-size:8px;line-height:1;cursor:pointer}' +
+      '.dsh-sb-shell [data-sb] .sb-collapse:hover{color:#fff}' +
+      '.dsh-sb-shell [data-sb] .sb-board{display:flex;flex-direction:column;gap:9px;margin-top:2px}' +
+      '.dsh-sb-shell [data-sb] .sb-board-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 auto;min-width:0;font-size:11px;color:#fff}' +
+      '.dsh-sb-shell [data-sb] .sb-board-state{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--sb-accent)}' +
+      '.dsh-sb-shell [data-sb] .sb-dot{display:inline-block;width:6px;height:6px;border-radius:50%;border:1px solid rgba(var(--sb-glow),.6)}' +
+      '.dsh-sb-shell [data-sb] .sb-dot.on{background:var(--sb-accent);border-color:transparent;box-shadow:0 0 6px rgba(var(--sb-glow),.75)}' +
+      '.dsh-sb-shell [data-sb] .sb-board-sep{opacity:.25}' +
+      '.dsh-sb-shell [data-sb] .sb-board-cell{font-variant-numeric:tabular-nums;opacity:.92}' +
+      '.dsh-sb-shell [data-sb] .sb-meter{display:inline-flex;align-items:center;gap:2px}' +
+      '.dsh-sb-shell [data-sb] .sb-meter i{display:inline-block;width:5px;height:7px;border-radius:1px;background:rgba(255,255,255,.12)}' +
+      '.dsh-sb-shell [data-sb] .sb-meter i.on{background:var(--sb-accent);box-shadow:0 0 5px rgba(var(--sb-glow),.55)}' +
+      '.dsh-sb-shell [data-sb] .sb-board-top .sb-meter{margin-left:-2px}' +
+      '.dsh-sb-shell [data-sb] .sb-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}' +
+      '.dsh-sb-shell [data-sb] .sb-col{display:flex;flex-direction:column;gap:5px;min-width:0}' +
+      '.dsh-sb-shell [data-sb] .sb-col-title{margin:0;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}' +
+      '.dsh-sb-shell [data-sb] .sb-col-activity .sb-col-title{color:var(--sb-accent)}' +
+      '.dsh-sb-shell [data-sb] .sb-col-tokens .sb-col-title{color:var(--sb-accent2)}' +
+      '.dsh-sb-shell [data-sb] .sb-col-context .sb-col-title{color:var(--sb-accent)}' +
+      '.dsh-sb-shell [data-sb] .sb-col-tokens .sb-meter i.on{background:var(--sb-accent2);box-shadow:0 0 5px rgba(var(--sb-glow),.45)}' +
+      '.dsh-sb-shell [data-sb] .sb-col-value{display:flex;align-items:baseline;gap:5px;font-variant-numeric:tabular-nums}' +
+      '.dsh-sb-shell [data-sb] .sb-col-num{font-size:19px;font-weight:600;line-height:1.1;color:#fff}' +
+      '.dsh-sb-shell [data-sb] .sb-col-unit{font-size:10px;opacity:.6}' +
+      '.dsh-sb-shell [data-sb] .sb-col-rows{display:flex;flex-direction:column;gap:2px;margin-top:2px}' +
+      '.dsh-sb-shell [data-sb] .sb-col-rows .sb-row{font-size:11px}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-card-head:active{cursor:grabbing}' +
       '.dsh-sb-shell [data-sb] .sb-card .dsh-sb-card-head{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:rgba(150,170,190,.85);margin-bottom:5px}' +
       /* ---- pixel mode: low-frame, low-paint ------------------------------
@@ -260,6 +297,7 @@ window.__ModuleLoader__.load({
       '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button:hover,' +
       '[data-composer-dock]>span:has(>button>svg[viewBox="0 0 14 14"])>button[aria-expanded="true"]{color:var(--dsh-sb-ctx-hover,var(--dsh-sb-ctx,var(--dsw-alias-label-secondary)))}' +
       '@media (prefers-reduced-motion:reduce){.dsh-sb-shell [data-sb]{animation:none!important}}' +
+      '@media (max-width:740px){.dsh-sb-shell [data-sb] .sb-card.board{width:calc(100vw - 32px)}.dsh-sb-shell [data-sb] .sb-cols{grid-template-columns:1fr}}' +
       /* ---- settings page ----------------------------------------------------
          Uses the host's own tokens so it belongs in Settings, and keeps the
          preview in the strip's own language. Nothing here is scoped to
@@ -434,6 +472,8 @@ window.__ModuleLoader__.load({
     const STORE_PIXEL = 'dsh.statusbar.pixel';
     const STORE_FLOW = 'dsh.statusbar.flow';
     const STORE_ANCHOR = 'dsh.statusbar.anchor';
+    const STORE_VIEW = 'dsh.statusbar.view';
+    const STORE_COLLAPSE = 'dsh.statusbar.collapse';
     const STORE_WIDTH = 'dsh.statusbar.width';
     const STORE_HEIGHT = 'dsh.statusbar.height';
 
@@ -453,6 +493,10 @@ window.__ModuleLoader__.load({
        aligned, sitting over the strip. `corner` drops the card's bottom-right
        corner onto the strip's top-left corner, so it grows up and to the left
        like a menu pinned to that corner. */
+    /* Two panel layouts over the same figures: the compact card the strip has
+       always had, and a board that gives the numbers room. */
+    const VIEW_CARD = 'card';
+    const VIEW_BOARD = 'board';
     const ANCHOR_ABOVE = 'above';
     const ANCHOR_CORNER = 'corner';
     const CARD_W = 300;
@@ -846,6 +890,10 @@ window.__ModuleLoader__.load({
       /* Cars currently on the road. Growth is immediate (a new car enters from
          the left, off-canvas); shrinkage waits for each car's next loop. */
       const [liveCars, setLiveCars] = React.useState(1);
+      /* Card or board. Persisted, so the panel opens the way it was left. */
+      const [view, setView] = React.useState(() => readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
+      /* The board folds down to its summary line; the card has no such state. */
+      const [collapsed, setCollapsed] = React.useState(() => readStored(STORE_COLLAPSE, 'off') === 'on');
       const working = realWorking || demo;
 
       const barRef = React.useRef(null);
@@ -870,6 +918,8 @@ window.__ModuleLoader__.load({
           setAnchor(readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]));
           setWidthStep(readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length));
           setHeightStep(readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length));
+          setView(readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]));
+          setCollapsed(readStored(STORE_COLLAPSE, 'off') === 'on');
         };
         window.addEventListener(SETTINGS_EVENT, sync);
         return () => window.removeEventListener(SETTINGS_EVENT, sync);
@@ -938,7 +988,11 @@ window.__ModuleLoader__.load({
         const bar = barRef.current;
         if (bar === null) return;
         const rect = bar.getBoundingClientRect();
-        setCornerOk(rect.left >= CARD_W + 16);
+        /* Corner mode is measured against the card as it actually renders, not
+           against a constant: the board is more than twice the card's width. */
+        const cardRect = cardRef.current === null ? null : cardRef.current.getBoundingClientRect();
+        const cardWidth = cardRect !== null && cardRect.width > 0 ? cardRect.width : CARD_W;
+        setCornerOk(rect.left >= cardWidth + 16);
         const next = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
         const last = boxRef.current;
         /* The scroll listener fires in bursts; re-seating the layer on an
@@ -1106,6 +1160,20 @@ window.__ModuleLoader__.load({
       const toggleDemo = () => {
         setDemo((previous) => !previous);
         window.setTimeout(() => pulseAt(58), 0);
+      };
+
+      const toggleCollapse = () => {
+        const next = !collapsed;
+        setCollapsed(next);
+        writeStored(STORE_COLLAPSE, next ? 'on' : 'off');
+        announceSettings();
+      };
+
+      const toggleView = () => {
+        const next = view === VIEW_BOARD ? VIEW_CARD : VIEW_BOARD;
+        setView(next);
+        writeStored(STORE_VIEW, next);
+        announceSettings();
       };
 
       const toggleAnchor = () => {
@@ -1529,12 +1597,278 @@ window.__ModuleLoader__.load({
       const row = (label, value) =>
         h('div', { className: 'sb-row' }, h('span', { className: 'sb-k' }, label), h('span', { className: 'sb-v' }, value));
 
+      /* Twenty blocks of five percent. Same shape as the shipped cache meter,
+         promoted to a component so the board's three columns and its header all
+         read as one system. */
+      const meter = (percent) => {
+        const filled = percent === null || percent === undefined ? 0 : Math.max(0, Math.min(20, Math.round(percent / 5)));
+        const blocks = [];
+        for (let index = 0; index < 20; index += 1) {
+          blocks.push(h('i', { key: index, className: index < filled ? 'on' : '' }));
+        }
+        return h('span', { className: 'sb-meter', 'aria-hidden': true }, blocks);
+      };
+
+      const paletteRow = h(
+        'div',
+        { className: 'sb-palette' },
+        THEMES.map((entry) =>
+          h('button', {
+            key: entry.id,
+            type: 'button',
+            className: 'sb-swatch' + (entry.id === theme ? ' on' : ''),
+            style: { background: entry.dot },
+            title: entry.label,
+            'aria-label': entry.label,
+            onClick: () => chooseTheme(entry.id),
+          }),
+        ),
+      );
+
+      const toolsRow = h(
+        'div',
+        { className: 'sb-tools' },
+        h(
+          'button',
+          {
+            type: 'button',
+            /* Every tool button reads as the state it is in, not as the action
+               it would perform: the accent latch means "this is on". */
+            className: 'sb-fx sb-pixel' + (pixel ? ' on' : ''),
+            title: pixel ? t('pixel.title.on') : t('pixel.title.off'),
+            'aria-pressed': pixel ? 'true' : 'false',
+            onClick: togglePixel,
+          },
+          pixel ? t('pixel.on') : t('pixel.off'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'sb-fx sb-fxtoggle' + (lite ? '' : ' on'),
+            title: lite ? t('fx.title.off') : t('fx.title.on'),
+            'aria-pressed': lite ? 'false' : 'true',
+            onClick: toggleFx,
+          },
+          lite ? t('fx.off') : t('fx.on'),
+        ),
+        h('button', { type: 'button', className: 'sb-fx sb-flowmode', title: t(flowCopy.title), onClick: toggleFlowMode }, t(flowCopy.label)),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'sb-fx sb-demo' + (demo ? ' on' : ''),
+            title: demo ? t('demo.title.on') : t('demo.title.off'),
+            'aria-pressed': demo ? 'true' : 'false',
+            onClick: (event) => {
+              event.stopPropagation();
+              toggleDemo();
+            },
+          },
+          demo ? t('demo.on') : t('demo.off'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'sb-fx sb-anchor',
+            title:
+              anchor === ANCHOR_CORNER
+                ? cornerOk
+                  ? t('anchor.title.corner')
+                  : t('anchor.title.tight')
+                : t('anchor.title.above'),
+            onClick: (event) => {
+              event.stopPropagation();
+              toggleAnchor();
+            },
+          },
+          anchor === ANCHOR_CORNER ? t('anchor.corner') : t('anchor.above'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'sb-fx sb-close',
+            title: t('card.close'),
+            'aria-label': t('card.close'),
+            onClick: (event) => {
+              event.stopPropagation();
+              closeCardNow();
+            },
+          },
+          '\u00D7',
+        ),
+      );
+
+      /* The switch lives in the header, not the tool row: it changes the shape
+         of the panel, so it belongs with the panel's own chrome. */
+      const viewButton = h(
+        'button',
+        {
+          type: 'button',
+          className: 'sb-view',
+          title: view === VIEW_BOARD ? t('view.title.card') : t('view.title.board'),
+          'aria-pressed': view === VIEW_BOARD ? 'true' : 'false',
+          onPointerDown: (event) => event.stopPropagation(),
+          onClick: (event) => {
+            event.stopPropagation();
+            toggleView();
+          },
+        },
+        view === VIEW_BOARD ? t('view.board') : t('view.card'),
+      );
+
+      const compactBody = [
+        row(t('card.state'), stateLabel),
+        row(t('card.turns'), String(turns) + ' / ' + String(steps)),
+        row(t('card.rate'), rate > 0 ? Math.round(rate) + ' tok/s' : '\u2014'),
+        row(t('card.tokens'), billed > 0 ? compact(billed) : '\u2014'),
+        row(t('card.cache'), cachePercent === null ? '\u2014' : cachePercent + '%'),
+        row(
+          t('card.context'),
+          contextPercent === null ? '\u2014' : contextPercent + '% (' + compact(occupied) + ' / ' + compact(windowSize) + ')',
+        ),
+        row(t('card.surface'), surfaceTokens === null ? '\u2014' : compact(surfaceTokens)),
+      ];
+
+      /* ---- the board ------------------------------------------------------
+         The same figures, given room: a summary line and three columns. The
+         summary line is built separately because it is also the whole panel when
+         the board is collapsed - the columns fold away, the line stays.
+
+         Activity is scaled against 200 tok/s for its meter, because that is the
+         top of the range a person can still read at a glance; cache and context
+         are already percentages. */
+      const activityPercent = rate > 0 ? Math.min(100, (rate / 200) * 100) : working ? 18 : 0;
+
+      const boardSummary = h(
+        'div',
+        { className: 'sb-board-top' },
+        h('span', { className: 'sb-board-state' }, h('i', { className: 'sb-dot' + (working ? ' on' : '') }), stateLabel),
+        h('span', { className: 'sb-board-sep' }, '\u2502'),
+        h('span', { className: 'sb-board-cell' }, turns + '/' + steps),
+        meter(activityPercent),
+        h('span', { className: 'sb-board-sep' }, '\u2502'),
+        h('span', { className: 'sb-board-cell' }, cachePercent === null ? '\u2014' : cachePercent + '%'),
+        h('span', { className: 'sb-board-sep' }, '\u2502'),
+        h('span', { className: 'sb-board-cell' }, contextPercent === null ? '\u2014' : contextPercent + '%'),
+        h('span', { className: 'sb-board-sep' }, '\u2502'),
+        io,
+        h('span', { className: 'sb-board-sep' }, '\u2502'),
+        h('span', { className: 'sb-board-cell' }, duration(wallMs)),
+      );
+
+      const column = (tone, title, percent, value, unit, rows) =>
+        h(
+          'section',
+          { className: 'sb-col sb-col-' + tone },
+          h('h4', { className: 'sb-col-title' }, title),
+          meter(percent),
+          h(
+            'div',
+            { className: 'sb-col-value' },
+            h('span', { className: 'sb-col-num' }, String(value)),
+            unit === '' ? null : h('span', { className: 'sb-col-unit' }, unit),
+          ),
+          h('div', { className: 'sb-col-rows' }, rows),
+        );
+
+      const boardColumns = h(
+        'div',
+        { className: 'sb-board' },
+        h(
+          'div',
+          { className: 'sb-cols' },
+          column('activity', t('board.activity'), activityPercent, rate > 0 ? Math.round(rate) : '\u2014', 'tok/s', [
+            row(t('board.turns'), String(turns) + ' / ' + String(steps)),
+            row(t('board.llm'), duration(num(stats && stats.llmMs))),
+            row(t('board.tools'), duration(num(stats && stats.toolMs))),
+            row(t('board.billed'), billed > 0 ? compact(billed) : '\u2014'),
+          ]),
+          column('tokens', t('board.tokens'), cachePercent, cachePercent === null ? '\u2014' : cachePercent, t('board.hit'), [
+            row(t('board.in'), compact(uncachedIn)),
+            row(t('board.out'), compact(outTokens)),
+            row(t('board.cached'), compact(cacheRead)),
+            row(t('board.write'), compact(cacheWrite)),
+          ]),
+          column(
+            'context',
+            t('board.context'),
+            contextPercent,
+            contextPercent === null ? '\u2014' : contextPercent,
+            t('board.of') + ' ' + compact(windowSize),
+            [
+              row(t('board.messages'), compact(breakdown && breakdown.messageTokens)),
+              row(t('board.systemTools'), compact(breakdown && breakdown.toolsTokens)),
+              row(t('board.systemPrompt'), compact(breakdown && breakdown.systemTokens)),
+              row(t('board.surface'), surfaceTokens === null ? '\u2014' : compact(surfaceTokens)),
+            ],
+          ),
+        ),
+      );
+
+      const foot = h('div', { className: 'sb-card-foot' }, paletteRow, sizeRow, toolsRow);
+
+      const collapseButton = h(
+        'button',
+        {
+          type: 'button',
+          className: 'sb-collapse',
+          title: collapsed ? t('view.title.expand') : t('view.title.collapse'),
+          'aria-expanded': collapsed ? 'false' : 'true',
+          onPointerDown: (event) => event.stopPropagation(),
+          onClick: (event) => {
+            event.stopPropagation();
+            toggleCollapse();
+          },
+        },
+        collapsed ? '\u25B6' : '\u25BC',
+      );
+
+      /* Board: the summary line is the header, so collapsing keeps the drag
+         handle and the numbers in the same place. Card: the original header. */
+      const cardHead =
+        view === VIEW_BOARD
+          ? h(
+              'div',
+              {
+                className: 'dsh-sb-card-head sb-board-head',
+                title: t('card.drag'),
+                onPointerDown: startDrag,
+                onDoubleClick: resetDrag,
+              },
+              collapseButton,
+              boardSummary,
+              viewButton,
+            )
+          : h(
+              'div',
+              {
+                className: 'dsh-sb-card-head',
+                title: t('card.drag'),
+                onPointerDown: startDrag,
+                onDoubleClick: resetDrag,
+              },
+              h('span', { className: 'sb-head-title' }, t('card.title')),
+              viewButton,
+            );
+
+      const cardBody =
+        view === VIEW_BOARD
+          ? collapsed
+            ? [cardHead]
+            : [cardHead, boardColumns, foot]
+          : [cardHead, ...compactBody, foot];
+
       const card = cardOpen
         ? h(
             'div',
             {
               className:
                 'sb-card' +
+                (view === VIEW_BOARD ? ' board' : '') +
+                (view === VIEW_BOARD && collapsed ? ' collapsed' : '') +
                 (pinned ? ' pinned' : '') +
                 (anchor === ANCHOR_CORNER && cornerOk ? ' corner' : '') +
                 (dragging ? ' dragging' : ''),
@@ -1544,126 +1878,7 @@ window.__ModuleLoader__.load({
               onMouseEnter: openCard,
               onMouseLeave: closeCardSoon,
             },
-            h(
-              'div',
-              {
-                className: 'dsh-sb-card-head',
-                title: t('card.drag'),
-                onPointerDown: startDrag,
-                onDoubleClick: resetDrag,
-              },
-              t('card.title'),
-            ),
-            row(t('card.state'), stateLabel),
-            row(t('card.turns'), String(turns) + ' / ' + String(steps)),
-            row(t('card.rate'), rate > 0 ? Math.round(rate) + ' tok/s' : '\u2014'),
-            row(t('card.tokens'), billed > 0 ? compact(billed) : '\u2014'),
-            row(t('card.cache'), cachePercent === null ? '\u2014' : cachePercent + '%'),
-            row(t('card.context'), contextPercent === null ? '\u2014' : contextPercent + '% (' + compact(occupied) + ' / ' + compact(windowSize) + ')'),
-            row(t('card.surface'), surfaceTokens === null ? '\u2014' : compact(surfaceTokens)),
-            sizeRow,
-            h(
-              'div',
-              { className: 'sb-palette' },
-              THEMES.map((entry) =>
-                h('button', {
-                  key: entry.id,
-                  type: 'button',
-                  className: 'sb-swatch' + (entry.id === theme ? ' on' : ''),
-                  style: { background: entry.dot },
-                  title: entry.label,
-                  'aria-label': entry.label,
-                  onClick: () => chooseTheme(entry.id),
-                }),
-              ),
-            ),
-            h(
-              'div',
-              { className: 'sb-tools' },
-              h(
-                'button',
-                {
-                  type: 'button',
-                  /* Every tool button reads as the state it is in, not as the
-                     action it would perform: the accent latch means "this is
-                     on". `fx off` used to be the action label, so a strip with
-                     the effects running said "fx off" and read as its own
-                     opposite. */
-                  className: 'sb-fx sb-pixel' + (pixel ? ' on' : ''),
-                  title: pixel ? t('pixel.title.on') : t('pixel.title.off'),
-                  'aria-pressed': pixel ? 'true' : 'false',
-                  onClick: togglePixel,
-                },
-                pixel ? t('pixel.on') : t('pixel.off'),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'sb-fx sb-fxtoggle' + (lite ? '' : ' on'),
-                  title: lite ? t('fx.title.off') : t('fx.title.on'),
-                  'aria-pressed': lite ? 'false' : 'true',
-                  onClick: toggleFx,
-                },
-                lite ? t('fx.off') : t('fx.on'),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'sb-fx sb-flowmode',
-                  title: t(flowCopy.title),
-                  onClick: toggleFlowMode,
-                },
-                t(flowCopy.label),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'sb-fx sb-demo' + (demo ? ' on' : ''),
-                  title: demo ? t('demo.title.on') : t('demo.title.off'),
-                  'aria-pressed': demo ? 'true' : 'false',
-                  onClick: (event) => {
-                    event.stopPropagation();
-                    toggleDemo();
-                  },
-                },
-                demo ? t('demo.on') : t('demo.off'),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'sb-fx sb-anchor',
-                  title:
-                    anchor === ANCHOR_CORNER
-                      ? cornerOk
-                        ? t('anchor.title.corner')
-                        : t('anchor.title.tight')
-                      : t('anchor.title.above'),
-                  onClick: (event) => {
-                    event.stopPropagation();
-                    toggleAnchor();
-                  },
-                },
-                anchor === ANCHOR_CORNER ? t('anchor.corner') : t('anchor.above'),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'sb-fx sb-close',
-                  title: t('card.close'),
-                  'aria-label': t('card.close'),
-                  onClick: (event) => {
-                    event.stopPropagation();
-                    closeCardNow();
-                  },
-                },
-                '\u00D7',
-              ),
-            ),
+            ...cardBody,
           )
         : null;
 
@@ -1768,6 +1983,7 @@ window.__ModuleLoader__.load({
         pixel: readStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off') === 'on',
         flow: readStored(STORE_FLOW, FLOW_BEADS, FLOW_ORDER),
         anchor: readStored(STORE_ANCHOR, ANCHOR_ABOVE, [ANCHOR_ABOVE, ANCHOR_CORNER]),
+        view: readStored(STORE_VIEW, VIEW_CARD, [VIEW_CARD, VIEW_BOARD]),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
       };
@@ -1951,6 +2167,15 @@ window.__ModuleLoader__.load({
             ),
           ),
           row(
+            t('settings.panel'),
+            h(
+              'span',
+              { className: 'sb-set-choices' },
+              choice(t('view.card'), prefs.view === VIEW_CARD, () => put(STORE_VIEW, VIEW_CARD), t('view.title.card')),
+              choice(t('view.board'), prefs.view === VIEW_BOARD, () => put(STORE_VIEW, VIEW_BOARD), t('view.title.board')),
+            ),
+          ),
+          row(
             t('settings.anchor'),
             h(
               'span',
@@ -1991,6 +2216,7 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_PIXEL, prefersReduced() ? 'on' : 'off');
                 writeStored(STORE_FLOW, FLOW_BEADS);
                 writeStored(STORE_ANCHOR, ANCHOR_ABOVE);
+                writeStored(STORE_VIEW, VIEW_CARD);
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
                 writeStored(STORE_HEIGHT, String(HEIGHT_DEFAULT));
                 commit();
@@ -2070,6 +2296,30 @@ window.__ModuleLoader__.load({
       'anchor.title.above': 'card hangs over the strip, left edges aligned - click to sit it on the strip corner',
       'anchor.title.corner': 'card sits on the strip top-left corner - click to hang it above',
       'anchor.title.tight': 'corner needs a card-width of room to the left of the strip - none here, so the card hangs above',
+      'board.activity': 'activity',
+      'board.tokens': 'tokens',
+      'board.context': 'context',
+      'board.turns': 'turns / steps',
+      'board.llm': 'LLM',
+      'board.tools': 'tools',
+      'board.billed': 'billed',
+      'board.in': 'in',
+      'board.out': 'out',
+      'board.cached': 'cached',
+      'board.write': 'write',
+      'board.hit': 'hit',
+      'board.messages': 'messages',
+      'board.systemTools': 'system tools',
+      'board.systemPrompt': 'system prompt',
+      'board.surface': 'surface',
+      'board.of': 'of',
+      'view.card': 'card',
+      'view.board': 'board',
+      'view.title.card': 'switch the panel back to the compact card',
+      'view.title.board': 'switch the panel to the three-column board',
+      'view.title.collapse': 'fold the board down to its summary line',
+      'view.title.expand': 'unfold the board',
+      'settings.panel': 'panel',
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
       'size.width': 'w',
@@ -2155,6 +2405,30 @@ window.__ModuleLoader__.load({
       'anchor.title.above': '卡片挂在状态条上方、左对齐 — 点击改为贴在状态条左角',
       'anchor.title.corner': '卡片贴在状态条左上角 — 点击改回挂在状态条上方',
       'anchor.title.tight': '角上模式需要状态条左侧留出约一张卡片的宽度 — 这里放不下，卡片先挂在上面',
+      'board.activity': '活动',
+      'board.tokens': 'token',
+      'board.context': '上下文',
+      'board.turns': '轮次 / 步数',
+      'board.llm': '模型耗时',
+      'board.tools': '工具耗时',
+      'board.billed': '计费',
+      'board.in': '输入',
+      'board.out': '输出',
+      'board.cached': '缓存',
+      'board.write': '写入',
+      'board.hit': '命中',
+      'board.messages': '消息',
+      'board.systemTools': '系统工具',
+      'board.systemPrompt': '系统提示',
+      'board.surface': '总表面积',
+      'board.of': '共',
+      'view.card': '卡片',
+      'view.board': '面板',
+      'view.title.card': '切换回紧凑卡片',
+      'view.title.board': '切换为三栏面板',
+      'view.title.collapse': '把面板折叠成一行摘要',
+      'view.title.expand': '展开面板',
+      'settings.panel': '面板',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
       'size.width': '宽',

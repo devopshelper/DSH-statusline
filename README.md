@@ -101,12 +101,14 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | `beads` / `bpm` / `water` / `term` / `traffic` | cycles the flow lane: travelling beads, a heartbeat trace, scrolling water, a typing terminal line, or highway traffic |
 | `demo` | rehearses the working state without sending a prompt |
 | `above` / `corner` | where the card hangs off the strip (see below) |
+| `card` / `board` in the panel header | switches the panel between the compact card and the three-column board |
+| `▼` / `▶` in the board header | folds the board to its one-line summary, or unfolds it |
 | `w − / +` | widens or narrows the strip: 900 → 980 → 1120 → 1280 → 1500 → full |
 | `h − / +` | heightens or flattens it: vertical padding 2 → 4 → 6 → 9 → 12 → 16 → 20 px |
 | drag the card header | moves the card anywhere; double-click the header to put it back |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
 ## The settings page
 
@@ -115,7 +117,7 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
+| edits | palette (12), panel view, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
 | preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
@@ -141,6 +143,24 @@ Beside the flow lane the strip mirrors the agent's checklist as boxes instead of
 
 Capped at 10 boxes with a `+N` overflow count, so a long checklist cannot push the metrics off the line. The tooltip is `2/7 · first item · second item · …`. Boxes are keyed by position *and* state, which is what lets a box that has just completed pop once instead of mutating silently.
 
+## Panel views
+
+The panel has two shapes over the same figures. The **card** is the original: one column, 300 px, everything the strip truncates written out. The **board** gives the numbers room: a summary line and three columns, 680 px wide.
+
+| | `card` (default) | `board` |
+|---|---|---|
+| width | 300 px | 680 px (full-width minus margins under 740 px) |
+| body | seven label/value rows | summary line + ACTIVITY, TOKENS, CONTEXT columns |
+| leads with | the state | a 20-block meter and a large figure per column |
+| collapse | `▼` folds the board down to its summary line, `▶` unfolds it |
+| switch | `card` / `board` in the panel header, or Settings → Plugins → panel |
+
+The board also folds. Collapsed it is the summary line alone — state, turns/steps, activity meter, cache, context, in/out, wall time — with no columns and no footer, sized to that line instead of 680 px. The fold control is the `▼`/`▶` at the head of the line, and it is persisted, so a board left folded stays folded.
+
+The switch lives in the card header rather than the tool row because it changes the panel's shape, and the choice is persisted with the rest. Both views share the same footer (palette, size, tools) and the same floating layer: only the width differs, and the corner fit is measured against the card **as it renders**, so switching to the board at the window's left edge falls back to `above` on its own instead of hanging off-screen.
+
+The meters are twenty blocks of five percent. Activity is scaled against 200 tok/s because that is the top of the range a person can still read at a glance; cache and context are already percentages.
+
 ## Card placement
 
 The card is anchored to the strip, never to the pointer, and it has two anchors:
@@ -151,7 +171,7 @@ The card is anchored to the strip, never to the pointer, and it has two anchors:
 | reads as | a panel lying over the strip | a menu pinned to the strip's top-left corner |
 | tail | centred under the card | near the card's bottom-right, pointing at the corner |
 
-In `corner` the card's bottom-right corner meets the strip's top-left corner and the card grows up and to the left, so its **right** edge is what aligns with the strip rather than its left edge. That needs a card's worth of room outside the strip, which only exists when the window is wider than the strip plus `300px + 16px`, so the room is measured once per opening and the card silently falls back to `above` when it is not there — otherwise it would hang off the left edge of the window.
+In `corner` the card's bottom-right corner meets the strip's top-left corner and the card grows up and to the left, so its **right** edge is what aligns with the strip rather than its left edge. That needs a card's worth of room outside the strip, which only exists when the window is wider than the strip plus the card plus 16 px. The card's rendered width is what gets measured, not a constant: the board is more than twice as wide as the card. When there is no room the card silently falls back to `above` — otherwise it would hang off the left edge of the window.
 
 Dragging is orthogonal to the anchor: it records a `translate()` offset on top of whichever anchor is active, pinned for the duration so the card's own mouse-leave cannot close it mid-gesture. Offsets are clamped against the measured, *untransformed* box, so repeated drags cannot creep and the card cannot be lost off-screen. The offset is session-scoped (it is not persisted) and a double-click on the header clears it; the anchor itself is persisted.
 
