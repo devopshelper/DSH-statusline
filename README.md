@@ -98,7 +98,7 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | palette swatch | repaints every glow (four custom properties carry the whole theme) |
 | `pixel` / `pixel on` | low-frame motion for RDP / software rendering; latched in the accent when on |
 | `fx on` / `fx off` | whole-surface effects, latched in the accent while they are running; state stays identical either way |
-| `beads` / `bpm` / `water` | cycles the flow lane between travelling beads, a heartbeat trace and scrolling water |
+| `beads` / `bpm` / `water` / `whale` / `traffic` | cycles the flow lane: travelling beads, a heartbeat trace, scrolling water, a diving whale, or two lanes of traffic |
 | `demo` | rehearses the working state without sending a prompt |
 | `above` / `corner` | where the card hangs off the strip (see below) |
 | `w − / +` | widens or narrows the strip: 900 → 980 → 1120 → 1280 → 1500 → full |
@@ -115,7 +115,7 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), full-surface FX, low frame rate, flow lane, card anchor, width, height, and a reset |
+| edits | palette (12), full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
 | preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
@@ -184,20 +184,35 @@ The lane uses the idle-throughput fallback (`55 tok/s`, i.e. a 1.6 s loop) becau
 
 ## The flow lane
 
-The lane beside the status text has three skins, cycled from one button in the card and remembered:
+The lane beside the status text has five skins, cycled from one button in the card (or picked directly on the settings page) and remembered:
 
-| | `beads` (default) | `bpm` | `water` |
+| skin | shape | working | idle |
 |---|---|---|---|
-| shape | 8 round nodes, two offset rows | one `polyline` on a 128×17 baseline | two filled wave silhouettes, one 128×17 cell |
-| working motion | `translateX` with staggered delays | a 9%-of-path dash swept by `stroke-dashoffset` | both layers scroll one wavelength per cycle; the back runs 40% slower and half a cycle out of phase |
-| idle | nodes dim and barely drift | the trace is hidden — only the baseline is left, i.e. a flatline | amplitude drops to 40% via `scaleY`, the front loses its glow, the swell slows to 9 s and settles rather than stops |
-| cost | 8 nodes × 2 `box-shadow` layers | one stroke, no shadows outside smooth mode | two filled paths, one `drop-shadow` on the front |
+| `beads` (default) | 8 round nodes, two offset rows | `translateX` with staggered delays | nodes dim and barely drift |
+| `bpm` | one `polyline` on a 128×17 baseline | a 9%-of-path dash swept by `stroke-dashoffset` | the trace is hidden, leaving a flatline |
+| `water` | two filled wave silhouettes | both layers scroll one wavelength per cycle; the back runs 40% slower and half a cycle out of phase | amplitude drops to 40% via `scaleY`, the front loses its glow, the swell settles rather than stopping |
+| `whale` | the same water, plus a whale between the two swells | one crossing per cycle, and one dive per crossing, at a little under the water's speed | the whale floats low and breathes instead of diving |
+| `traffic` | two lanes and a dashed divider, seen from above | three cars, upper lane right, lower lane left, each with its own factor and a negative delay | the road empties out and the remaining cars crawl |
 
-All three read the same tok/s formula (`clamp(3.2 / (1 + tps / 55), 0.5, 3.2)`), so whichever skin is on, the lane's speed means the same thing. The `bpm` sweep rate *is* the pulse rate and a fast turn visibly races. The `water` scroll is deliberately a shade slower (`× 1.15`, floored at 1 s per wavelength) because at bead speed the crests strobe instead of rolling.
+All five read the same tok/s formula (`clamp(3.2 / (1 + tps / 55), 0.5, 3.2)`), so whichever skin is on, the lane's speed means the same thing: how fast tokens are landing. The `bpm` sweep rate *is* the pulse rate, the `water` scroll is a shade slower than the beads (`× 1.15`, floored at 1 s per wavelength) because at bead speed the crests strobe, and `whale` and `traffic` run slower still — a whale moving at bead speed reads as a bug, not as a swimmer.
 
-The `bpm` path is generated once at module load by `ECG_PATH` — one 32-unit P-QRS-T complex repeated four times — rather than hand-written coordinates. `stroke-dasharray: 9 100` with `pathLength="100"` normalises the dash to 9% of the path regardless of its real length; the keyframe shifts `stroke-dashoffset` by `-109` (dash + gap) so the loop is seamless.
+### How the whale dives
 
-The `water` path is built the same way (`WAVE_PATH`) and has three seam-critical properties, all spelled out beside it: each hump leaves and enters with the same tangent, so periods tile without a kink; the scroll travels exactly one period (64 units), so the loop lands on an identical frame instead of jumping; and the strip is drawn from `-64` to `320` instead of `0` to `256`, i.e. with a whole period of run-up off-canvas on the left. That last one is not padding: the water travels rightward like the beads and the ECG pulse do, and a rightward scroll without the overhang would expose a gap at the leading edge once per cycle. Amplitude is a `scaleY` on the shared group with `transform-box: fill-box`, anchored to the bottom, which is why going idle is a swell settling rather than a swap between two drawings.
+The whale is a `<g>` between the back swell and the front one, in the same SVG:
+
+```text
+back swell  →  whale  →  front swell
+```
+
+That ordering *is* the dive. The front fill is opaque and covers the lower half of the lane, so an animated `translateY` on the whale simply carries it behind the water and back out again — no mask, no clipping path, no second copy of the wave. Swim and dive are separate transforms on nested groups (`sb-whale-swim` and `sb-whale-dive`), so neither has to know the other's numbers: the swim is a straight crossing with an opacity fade at each edge, which is also what hides the wrap. The spout is three puffs on the same clock, visible only around the breach, so spout and breach cannot drift apart. The tail wags on a faster independent loop.
+
+Idle swaps the dive keyframes for a bob (`sb-whale-bob`) and lowers the whale, because the waves settle to 40% amplitude and a diving whale in flat water would look like it fell through the floor.
+
+### The highway
+
+Static road, moving cars. The dashes are built once from `ROAD_DASHES`; the motion is three `<g class="sb-car-run">` groups, one per car, each with its own duration factor and a negative `animation-delay` so they never travel in convoy. The lower-lane car is mirrored around its own centre (`translate(25 0) scale(-1 1)`) so its headlight is its leading edge rather than its tail.
+
+Lane offset travels as an SVG `transform` attribute on the car group and motion as a CSS `transform` on a child: a CSS transform on the same element would replace the attribute and drop the lane.
 
 ## Layout rules that are load-bearing
 

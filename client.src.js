@@ -139,6 +139,56 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-wave.idle .sb-wave-amp{transform:scaleY(.4)}' +
       '.dsh-sb-shell [data-sb] .sb-wave.idle .sb-wave-front{opacity:.55;filter:none}' +
       '@keyframes sb-wave-scroll{from{transform:translateX(0)}to{transform:translateX(64px)}}' +
+      /* ---- whale ------------------------------------------------------------
+         The water field above is shared by both water skins. The whale sits
+         between the back swell and the front one, so the front fill passes over
+         it and the dive is hidden by the water itself - no mask, no clipping
+         path, no second copy of the wave.
+
+         Swim and dive are separate transforms on nested groups: the swim is a
+         straight crossing with a fade at each edge (which is what hides the wrap),
+         the dive is one traversal of the same duration. The spout is timed off
+         the same clock, so a drift between spout and breach cannot happen. */
+      '.dsh-sb-shell [data-sb] .sb-whale .sb-whale-swim{animation:sb-whale-swim var(--sb-whale-dur,6s) linear infinite}' +
+      '.dsh-sb-shell [data-sb] .sb-whale .sb-whale-dive{animation:sb-whale-dive var(--sb-whale-dur,6s) ease-in-out infinite;transform-box:fill-box;transform-origin:50% 50%}' +
+      '.dsh-sb-shell [data-sb] .sb-whale .sb-whale-body{filter:drop-shadow(0 0 3px rgba(var(--sb-glow),.55))}' +
+      '.dsh-sb-shell [data-sb] .sb-whale .sb-whale-body path{fill:var(--sb-accent2)}' +
+      '.dsh-sb-shell [data-sb] .sb-whale .sb-whale-eye{fill:#04070d}' +
+      '.dsh-sb-shell [data-sb] .sb-whale .sb-whale-spout{fill:var(--sb-text);opacity:0;animation:sb-whale-spout var(--sb-whale-dur,6s) ease-out infinite}' +
+      '.dsh-sb-shell [data-sb] .sb-whale .sb-whale-tail{transform-box:fill-box;transform-origin:100% 50%;animation:sb-whale-tail 1.2s ease-in-out infinite}' +
+      /* Idle water is flat (the waves settle to 40% amplitude), so the whale
+         floats lower and breathes instead of diving. */
+      '.dsh-sb-shell [data-sb] .sb-whale.idle .sb-whale-dive{animation-name:sb-whale-bob;animation-duration:calc(var(--sb-whale-dur,12s) * 0.4)}' +
+      '.dsh-sb-shell [data-sb] .sb-whale.idle .sb-whale-spout{animation:none;opacity:0}' +
+      '.dsh-sb-shell [data-sb] .sb-whale.idle .sb-whale-tail{animation-duration:2.4s}' +
+      '@keyframes sb-whale-swim{0%{transform:translateX(-46px);opacity:0}7%{opacity:1}93%{opacity:1}100%{transform:translateX(292px);opacity:0}}' +
+      '@keyframes sb-whale-dive{0%,6%{transform:translateY(-2px) rotate(-2deg)}18%{transform:translateY(1px) rotate(1deg)}30%{transform:translateY(-4px) rotate(-3deg)}42%{transform:translateY(6px) rotate(4deg)}56%{transform:translateY(13px) rotate(6deg)}72%{transform:translateY(9px) rotate(4deg)}86%{transform:translateY(0) rotate(-1deg)}94%,100%{transform:translateY(-2px) rotate(-2deg)}}' +
+      '@keyframes sb-whale-bob{0%,100%{transform:translateY(2px) rotate(-1deg)}50%{transform:translateY(5px) rotate(1deg)}}' +
+      '@keyframes sb-whale-spout{0%,26%{opacity:0;transform:translateY(3px)}31%{opacity:.95;transform:translateY(0)}40%{opacity:.7;transform:translateY(-4px)}47%,100%{opacity:0;transform:translateY(-8px)}}' +
+      '@keyframes sb-whale-tail{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}' +
+      /* ---- highway ----------------------------------------------------------
+         Two lanes, a dashed divider, three cars. The upper lane runs right and
+         the lower one runs left, with the oncoming car mirrored so its headlight
+         is its leading edge - the two directions are what make this read as a
+         road instead of as particles with wheels.
+
+         The road itself is static. Motion lives in the cars: their speed is the
+         token rate, so a fast model is a fast road. Each car has its own factor
+         and a negative delay so they never travel in convoy. */
+      '.dsh-sb-shell [data-sb] .sb-traffic{position:relative;display:inline-block;width:var(--sb-flow-w);height:var(--sb-flow-h);overflow:hidden;vertical-align:middle}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic svg{display:block;width:100%;height:100%}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-road rect{fill:rgba(var(--sb-glow),.45)}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-car path{fill:var(--sb-accent)}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-run-wide path{fill:var(--sb-accent2)}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-run-back path{fill:var(--sb-text);opacity:.9}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-car-wheel{fill:#04070d}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-car-light{fill:var(--sb-text);filter:drop-shadow(0 0 3px rgba(var(--sb-glow),.9))}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-car-run{animation:sb-car-right var(--sb-traffic-dur,3s) linear infinite}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-run-tight{animation-duration:calc(var(--sb-traffic-dur,3s) * .85);animation-delay:calc(var(--sb-traffic-dur,3s) * -.35)}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-run-wide{animation-duration:calc(var(--sb-traffic-dur,3s) * 1.15);animation-delay:calc(var(--sb-traffic-dur,3s) * -.62)}' +
+      '.dsh-sb-shell [data-sb] .sb-traffic .sb-run-back{animation-name:sb-car-left;animation-duration:calc(var(--sb-traffic-dur,3s) * 1.05);animation-delay:calc(var(--sb-traffic-dur,3s) * -.45)}' +
+      '@keyframes sb-car-right{0%{transform:translateX(-44px);opacity:0}6%{opacity:1}94%{opacity:1}100%{transform:translateX(292px);opacity:0}}' +
+      '@keyframes sb-car-left{0%{transform:translateX(292px);opacity:0}6%{opacity:1}94%{opacity:1}100%{transform:translateX(-44px);opacity:0}}' +
       '.dsh-sb-shell [data-sb] .sb-tools{flex-wrap:wrap;gap:4px}' +
       /* Six buttons have to fit 278px of card. Tighten the padding and the gap
          rather than let the row wrap into a second line nobody expects. */
@@ -182,6 +232,10 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-io .sb-out-arrow,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-io .sb-in-arrow{text-shadow:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-io .sb-out-arrow{animation:none;text-shadow:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-io .sb-in-arrow{text-shadow:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-whale .sb-whale-swim,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-whale .sb-whale-dive{animation-timing-function:steps(6,end)!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-whale .sb-whale-body,.dsh-sb-shell [data-sb][data-sb-lite] .sb-whale .sb-whale-body{filter:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-traffic .sb-car-run{animation-timing-function:steps(8,end)!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-traffic .sb-car-light,.dsh-sb-shell [data-sb][data-sb-lite] .sb-traffic .sb-car-light{filter:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-wave .sb-wave-front{filter:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-step.done{box-shadow:none}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flower,' +
@@ -336,6 +390,13 @@ window.__ModuleLoader__.load({
     /* Lane speeds. The wave uses the same tok/s formula as the beads; idle is a
        slow swell rather than a crawl, because a wave that stops reads as a bug. */
     const WAVE_IDLE_SECONDS = 9;
+    /* Highway divider: dashes every 32 units on the 256-unit road, which is the
+       same spacing the water uses for its crests. Built once, not per render. */
+    const ROAD_DASHES = (function () {
+      const out = [];
+      for (let x = 4; x < 256; x += 32) out.push(x);
+      return out;
+    })();
 
     const IDLE_PHRASES = [
       'waiting to cogitate',
@@ -411,7 +472,9 @@ window.__ModuleLoader__.load({
     const FLOW_BEADS = 'beads';
     const FLOW_ECG = 'ecg';
     const FLOW_WAVE = 'wave';
-    const FLOW_ORDER = [FLOW_BEADS, FLOW_ECG, FLOW_WAVE];
+    const FLOW_WHALE = 'whale';
+    const FLOW_TRAFFIC = 'traffic';
+    const FLOW_ORDER = [FLOW_BEADS, FLOW_ECG, FLOW_WAVE, FLOW_WHALE, FLOW_TRAFFIC];
 
     /* Lane copy, keyed by the lane itself: one table instead of a ternary chain
        in three places (title, button label, next-lane tooltip). */
@@ -433,6 +496,18 @@ window.__ModuleLoader__.load({
         idle: 'flow.wave.idle',
         label: 'flowmode.wave',
         title: 'flowmode.title.wave',
+      },
+      [FLOW_WHALE]: {
+        busy: 'flow.whale.busy',
+        idle: 'flow.whale.idle',
+        label: 'flowmode.whale',
+        title: 'flowmode.title.whale',
+      },
+      [FLOW_TRAFFIC]: {
+        busy: 'flow.traffic.busy',
+        idle: 'flow.traffic.idle',
+        label: 'flowmode.traffic',
+        title: 'flowmode.title.traffic',
       },
     };
     const flowText = (mode) => FLOW_TEXT[mode] || FLOW_TEXT[FLOW_BEADS];
@@ -1118,6 +1193,13 @@ window.__ModuleLoader__.load({
          floor matters at very high rates - below about a second per wavelength
          the crests strobe instead of rolling. */
       const waveSeconds = working ? Math.max(1, Math.min(2.6, flowSeconds * 1.15)) : WAVE_IDLE_SECONDS;
+      /* The whale crosses once per cycle, and one crossing is one dive. Slower
+         than the water on purpose: a whale moving at the wave's rate reads as a
+         bug in the animation rather than as a swimmer. */
+      const whaleSeconds = working ? Math.max(3.2, Math.min(5.5, flowSeconds * 2.2)) : 12;
+      /* Traffic answers the same question the beads do - how fast are tokens
+         landing - with cars instead of particles. Faster model, faster road. */
+      const trafficSeconds = working ? Math.max(1.6, Math.min(3.4, flowSeconds * 1.2)) : 9;
 
       /* One label for every place the state is spoken: never claim a turn is
          running when it is only a rehearsal. */
@@ -1223,8 +1305,97 @@ window.__ModuleLoader__.load({
           )
         : h('span', { className: 'dsh-sb-brand' }, 'DeepSeek Harness');
 
-      /* The lane itself. Three skins, one cell: the strip must not reshuffle
-         when the reader cycles them, so every skin is the same 128x17 box. */
+      /* The lane itself. Four skins, one cell: the strip must not reshuffle
+         when the reader cycles them, so every skin is the same 128x17 box.
+
+         The two water skins share one water field; `whale` adds the swimmer
+         between the back swell and the front one - so the water passes in front
+         of the whale and the dive is hidden by the same fill that draws the
+         waves, with no second mask anywhere. */
+      const waveLayer = (tone) => h('g', { className: 'sb-wave-amp' }, h('g', { className: 'sb-wave-scroll ' + tone }, h('path', { d: WAVE_PATH })));
+
+      const waterField = (thisWhale) =>
+        h(
+          'svg',
+          { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
+          waveLayer('sb-wave-back'),
+          thisWhale,
+          waveLayer('sb-wave-front'),
+        );
+
+      /* Side view, head right, ~36 x 16 user units: about 18 x 14 CSS px in the
+         lane. Big enough to read as a whale, small enough to stay a silhouette. */
+      const whale =
+        flowMode === FLOW_WHALE
+          ? h(
+              'g',
+              { className: 'sb-whale-swim' },
+              h(
+                'g',
+                { className: 'sb-whale-dive' },
+                h(
+                  'g',
+                  { className: 'sb-whale-body', transform: 'translate(4 1)' },
+                  h('path', { className: 'sb-whale-tail', d: 'M11 8.2 L1.2 2.8 C3.4 5.6 3.4 10.8 1.2 13.6 Z' }),
+                  h('path', { d: 'M10 8.2 C12.5 4.2 20 2.4 27 3.4 C32.2 4.1 35 6 35.6 8.2 C35 10.3 32.2 12.1 27 12.8 C20 13.8 12.5 12.2 10 8.2 Z' }),
+                  h('path', { d: 'M21 11.6 C22.6 13.4 24.8 14.2 26.4 13.6 C24.6 15.2 21.8 14.2 21 11.6 Z' }),
+                  h('circle', { className: 'sb-whale-eye', cx: 31, cy: 7, r: 1.1 }),
+                  /* The spout only exists during the breach, timed off the same
+                     cycle as the dive, so the two cannot drift apart. */
+                  h('circle', { className: 'sb-whale-spout', cx: 28.4, cy: 2.6, r: 0.9 }),
+                  h('circle', { className: 'sb-whale-spout', cx: 30.2, cy: 1.5, r: 0.7 }),
+                  h('circle', { className: 'sb-whale-spout', cx: 26.6, cy: 1.2, r: 0.6 }),
+                ),
+              ),
+            )
+          : null;
+
+      /* ---- traffic ---------------------------------------------------------
+         The road is the same 128x17 cell seen from above: two lanes, a dashed
+         divider, and three cars. Upper lane runs right, lower lane runs left,
+         which is what makes it read as a road rather than as particles again.
+         Cars carry their lane offset as an SVG transform attribute and their
+         motion as a CSS transform on a child group: a CSS transform would
+         replace an attribute transform on the same element.
+
+         Each car gets its own duration and a negative delay, so they never
+         travel in convoy and the loop never reads as one. */
+      const carBody = 'M0 6 C0 3.6 2 2.6 5 2.6 L8 .6 L16 .6 L19 2.6 L23 3.2 C25 3.6 25 5.2 25 6 L25 7 L0 7 Z';
+      const car = (laneY, runClass, oncoming) =>
+        h(
+          'g',
+          { className: 'sb-car', transform: 'translate(0 ' + laneY + ')' },
+          h(
+            'g',
+            { className: 'sb-car-run ' + runClass },
+            h(
+              'g',
+              /* The oncoming car faces the other way: mirrored around its own
+                 centre, so its headlight is its leading edge. */
+              { className: 'sb-car-face', transform: oncoming ? 'translate(25 0) scale(-1 1)' : undefined },
+              h('path', { d: carBody }),
+              h('circle', { className: 'sb-car-wheel', cx: 6, cy: 7.4, r: 1.8 }),
+              h('circle', { className: 'sb-car-wheel', cx: 18, cy: 7.4, r: 1.8 }),
+              h('circle', { className: 'sb-car-light', cx: 23, cy: 4.6, r: 1 }),
+            ),
+          ),
+        );
+      const trafficField =
+        flowMode === FLOW_TRAFFIC
+          ? h(
+              'svg',
+              { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
+              h(
+                'g',
+                { className: 'sb-road' },
+                ROAD_DASHES.map((x) => h('rect', { key: x, x: x, y: 9.4, width: 14, height: 1.2, rx: 0.6 })),
+              ),
+              car(1, 'sb-run-tight'),
+              car(1, 'sb-run-wide'),
+              car(10, 'sb-run-back', true),
+            )
+          : null;
+
       const lane =
         flowMode === FLOW_ECG
           ? h(
@@ -1251,35 +1422,48 @@ window.__ModuleLoader__.load({
                   title: flowTitle,
                   'aria-hidden': true,
                 },
-                h(
-                  'svg',
-                  { viewBox: '0 0 256 20', preserveAspectRatio: 'none' },
-                  h(
-                    'g',
-                    { className: 'sb-wave-amp' },
-                    h('g', { className: 'sb-wave-scroll sb-wave-back' }, h('path', { d: WAVE_PATH })),
-                    h('g', { className: 'sb-wave-scroll sb-wave-front' }, h('path', { d: WAVE_PATH })),
-                  ),
-                ),
+                waterField(null),
               )
-            : h(
-                'span',
-                {
-                  className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
-                  style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
-                  title: flowTitle,
-                  'aria-hidden': true,
-                },
-                h('i', null),
-                h('i', null),
-                h('i', null),
-                h('i', null),
-                pixel ? null : h('i', null),
-                pixel ? null : h('i', null),
-                pixel ? null : h('i', null),
-                pixel ? null : h('i', null),
-                h('span', { className: 'sb-flow-gear' }, '\u2699'),
-              );
+            : flowMode === FLOW_WHALE
+              ? h(
+                  'span',
+                  {
+                    className: 'sb-whale dsh-sb-flow' + (working ? '' : ' idle'),
+                    style: { '--sb-whale-dur': whaleSeconds.toFixed(2) + 's' },
+                    title: flowTitle,
+                    'aria-hidden': true,
+                  },
+                  waterField(whale),
+                )
+              : flowMode === FLOW_TRAFFIC
+                ? h(
+                    'span',
+                    {
+                      className: 'sb-traffic dsh-sb-flow' + (working ? '' : ' idle'),
+                      style: { '--sb-traffic-dur': trafficSeconds.toFixed(2) + 's' },
+                      title: flowTitle,
+                      'aria-hidden': true,
+                    },
+                    trafficField,
+                  )
+                : h(
+                  'span',
+                  {
+                    className: 'sb-flow dsh-sb-flow' + (working ? '' : ' idle'),
+                    style: { '--sb-flow-dur': flowSeconds.toFixed(2) + 's' },
+                    title: flowTitle,
+                    'aria-hidden': true,
+                  },
+                  h('i', null),
+                  h('i', null),
+                  h('i', null),
+                  h('i', null),
+                  pixel ? null : h('i', null),
+                  pixel ? null : h('i', null),
+                  pixel ? null : h('i', null),
+                  pixel ? null : h('i', null),
+                  h('span', { className: 'sb-flow-gear' }, '\u2699'),
+                );
 
 
       const cacheBlocks = cachePercent === null ? 0 : Math.max(0, Math.min(5, Math.round(cachePercent / 20)));
@@ -1865,6 +2049,10 @@ window.__ModuleLoader__.load({
       'flow.ecg.idle': 'flatline - nothing decoding',
       'flow.wave.busy': 'two water layers scrolling at the live token rate',
       'flow.wave.idle': 'still water, one slow swell',
+      'flow.whale.busy': 'a whale crossing the water at the live token rate, diving as it goes',
+      'flow.whale.idle': 'a whale idling in flat water',
+      'flow.traffic.busy': 'cars on a two-lane road, running at the live token rate',
+      'flow.traffic.idle': 'a nearly empty road, traffic crawling',
       'metric.cache': 'prompt tokens served from cache —',
       'metric.cache.pending': 'no cached prompt sample yet',
       'metric.split': 'uncached input · output',
@@ -1891,9 +2079,13 @@ window.__ModuleLoader__.load({
       'flowmode.beads': 'beads',
       'flowmode.ecg': 'bpm',
       'flowmode.wave': 'water',
+      'flowmode.whale': 'whale',
+      'flowmode.traffic': 'traffic',
       'flowmode.title.beads': 'flowing token beads - click for a flat heartbeat trace',
       'flowmode.title.ecg': 'heartbeat trace at the live rate - click for two scrolling water layers',
-      'flowmode.title.wave': 'two water layers scrolling at the live rate - click for flowing beads',
+      'flowmode.title.wave': 'two water layers scrolling at the live rate - click for a diving whale',
+      'flowmode.title.whale': 'a whale crossing the water, diving once per pass - click for cars on a highway',
+      'flowmode.title.traffic': 'two lanes of traffic running at the live token rate - click for flowing beads',
       'demo.off': 'demo',
       'demo.on': 'demo on',
       'demo.title.off': 'play the working animations without sending a prompt',
@@ -1942,6 +2134,10 @@ window.__ModuleLoader__.load({
       'flow.ecg.idle': '平线 — 当前没有解码',
       'flow.wave.busy': '两层水波按实时速率流动',
       'flow.wave.idle': '静水，缓缓起伏',
+      'flow.whale.busy': '鲸鱼按实时速率穿过水面，途中下潜',
+      'flow.whale.idle': '鲸鱼在平静的水面漂着',
+      'flow.traffic.busy': '双车道上的车按实时速率行驶',
+      'flow.traffic.idle': '空荡荡的路，车流缓慢',
       'metric.cache': '缓存命中的提示词比例 —',
       'metric.cache.pending': '尚无缓存样本',
       'metric.split': '未缓存输入 · 输出',
@@ -1968,9 +2164,13 @@ window.__ModuleLoader__.load({
       'flowmode.beads': '粒子',
       'flowmode.ecg': '心电',
       'flowmode.wave': '水波',
+      'flowmode.whale': '鲸鱼',
+      'flowmode.traffic': '车流',
       'flowmode.title.beads': '流动的 token 粒子 — 点击切换为平线心电',
       'flowmode.title.ecg': '实时速率的心电曲线 — 点击切换为两层流动的水波',
-      'flowmode.title.wave': '两层水波按实时速率流动 — 点击切回流动粒子',
+      'flowmode.title.wave': '两层水波按实时速率流动 — 点击切换为下潜的鲸鱼',
+      'flowmode.title.whale': '鲸鱼每次经过都会下潜一次 — 点击切换为高速公路上的车流',
+      'flowmode.title.traffic': '双车道车流按实时速率行驶 — 点击切回流动粒子',
       'demo.off': '演示',
       'demo.on': '演示 开',
       'demo.title.off': '不发送消息，直接播放工作中的动画',
