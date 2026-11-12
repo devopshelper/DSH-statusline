@@ -3,9 +3,9 @@
 A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits in a dock cell of its own under the composer, beside the harness's own status pills — nothing is hidden or replaced.
 
 ```
-✻ ◇ deepseek-v4.1-flash · ✦ Flibbertigibbeting...  · •••••••• · ▣▣◧▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
-✻ ◇ deepseek-v4.1-flash · ✦ Crunched for 4s        · •••••••• · ▣▣▣▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
-✻ ◇ deepseek-v4.1-flash · ◌ in the ether Zzzz      · ••••••••           ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ✦ Flibbertigibbeting...  · •••••••• · ▣▣◧▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ✦ Crunched for 4s        · •••••••• · ▣▣▣▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ◌ in the ether Zzzz      · ••••••••           ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
 ```
 
 The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. The chip names the model that is actually running, with a family mark; the agent's own checklist appears beside the flow lane as one box per step. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter. A `demo` toggle in the card plays the whole working state on demand, so you can look at the motion without spending a prompt, and the card carries `w` / `h` steppers that resize the strip where you want it.
@@ -76,7 +76,7 @@ Everything comes from session projections — no polling, no client-side folding
 | Projection | Used for |
 |---|---|
 | `sessionStats` | turns, steps, `decodeTokens / decodeMs` → tok/s (drives bead speed), `llmMs + toolMs` → wall time |
-| `tokenUsage` | cache-hit % (`cacheRead / promptSide`), `↑uncached ↓output`, and the card's billed total (`uncached + output + cacheRead + cacheWrite`) |
+| `tokenUsage` | cache-hit % (`cacheRead / promptSide`), the `↑in / ↓out` split (uncached input, output), and the card's billed total (`uncached + output + cacheRead + cacheWrite`) |
 | `contextPressure` | `projectedTokens ?? pressureTokens` / `contextWindow` → ctx %, clamped at 100 (card only) |
 | `contextBreakdown` | surface composition, shown in the card |
 | `modelSelection` | the chip's model name and reasoning effort (`next ?? lastUsed`, so a blank session and a settled one both read) |
@@ -189,8 +189,21 @@ The `water` path is built the same way (`WAVE_PATH`) and has three seam-critical
 - `--sb-glow` must stay a **bare RGB triple** (`0,229,255`, no `rgb()` wrapper) — it is spliced into `rgba(var(--sb-glow), a)` by every keyframe.
 - breath stops at **0% / 38% / 46% / 100%** — asymmetric inhale/hold/exhale, not a sine.
 - **27ch** status slot and **1.2em** glyph box, or the strip reflows once per breath.
+- the dock is forced to `width: 100%`. The owner renders it as a shrink-to-fit flex child of a centred column, so `width: 100%` on our shell was resolving against a box sized *by its own content* — which made the whole strip grow and shrink as the phrase, the model id or the step boxes changed length. Stretching the dock gives the width an outside reference. Same structural `:has(> .dsh-sb-shell)` selector as the wrap rule, so the failure mode stays "the old behaviour returns".
 - the splash restarts via class flip + reflow on a persistent node — never a remount.
 - no `container-type` on the shell: inline-size containment reports zero intrinsic width and collapses the strip.
+
+## The token split
+
+`↑1.4M / ↓18k` is two directions, not one dim string:
+
+| | in | out |
+|---|---|---|
+| arrow | `↑` in the second accent | `↓` in the accent |
+| glow | 7px, static | 8px, and it **pulses while a turn is decoding** |
+| title | "prompt tokens sent to the model, excluding cache hits" | "tokens the model has returned this session" |
+
+The pulse is the only live part on purpose: incoming prompt tokens are already fixed by the time they are sent, while the outgoing count is the half that is actually moving. `fx off` freezes the pulse and drops both glows; pixel mode steps it at `steps(2)`.
 
 Cadence lives in three constants at the top of `client.src.js`, not scattered through the component:
 

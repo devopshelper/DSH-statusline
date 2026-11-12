@@ -42,6 +42,15 @@ window.__ModuleLoader__.load({
          restructures its markup the selector simply stops matching and the
          layout degrades to "beside", never to someone else's element. */
       ':is(div,section,ul):has(> .dsh-sb-shell),:is(div,section,ul):has(> * > .dsh-sb-shell){flex-wrap:wrap!important;justify-content:center!important;row-gap:4px}' +
+      /* Pin the strip's width to the layout instead of to its text.
+         The owner's dock is a shrink-to-fit flex child of a centred column, so
+         `width:100%` on our shell was resolving against a content-sized box -
+         which made the whole strip grow and shrink as the phrase, the model id
+         or the step boxes changed length. Making the dock span the composer
+         gives the shell a width with an outside reference. Same structural
+         selector as the wrap rule above: if the owner restructures, it stops
+         matching and the layout degrades to today's behaviour. */
+      ':is(div,section,ul):has(> .dsh-sb-shell){width:100%}' +
       '.dsh-sb-shell [data-sb]{display:flex;align-items:center;flex-wrap:nowrap;width:100%;max-width:var(--sb-shell-max,980px);margin:0 auto;box-sizing:border-box;border:1px solid rgba(var(--sb-glow),.16);border-radius:10px}' +
       '.dsh-sb-shell [data-sb] .sb-group{min-width:0}' +
       '.dsh-sb-shell [data-sb] .sb-status{flex:0 1 auto;min-width:0}' +
@@ -75,6 +84,20 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-size .sb-tool-v{min-width:28px}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-metric{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-variant-numeric:tabular-nums}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-dim{opacity:.82}' +
+      /* ---- the token split --------------------------------------------------
+         In and out read as two directions, not as one dim string: the arrow
+         carries the glow (accent for out, second accent for in) and the slash
+         between them is a hairline. Out pulses while a turn is decoding - it is
+         the only half of this pair that is moving. */
+      '.dsh-sb-shell [data-sb] .sb-io{display:inline-flex;align-items:center;gap:5px}' +
+      '.dsh-sb-shell [data-sb] .sb-io b{font-weight:700;line-height:1;font-size:11.5px}' +
+      '.dsh-sb-shell [data-sb] .sb-in,.dsh-sb-shell [data-sb] .sb-out{display:inline-flex;align-items:center;gap:2px}' +
+      '.dsh-sb-shell [data-sb] .sb-in-arrow{color:var(--sb-accent2);text-shadow:0 0 7px rgba(var(--sb-glow),.55)}' +
+      '.dsh-sb-shell [data-sb] .sb-out-arrow{color:var(--sb-accent);text-shadow:0 0 8px rgba(var(--sb-glow),.7)}' +
+      '.dsh-sb-shell [data-sb] .sb-io-v{opacity:.92}' +
+      '.dsh-sb-shell [data-sb] .sb-io-sep{opacity:.25;margin:0 1px}' +
+      '.dsh-sb-shell [data-sb][data-sb-state="work"] .sb-out-arrow{animation:sb-io-pulse 1.1s ease-in-out infinite}' +
+      '@keyframes sb-io-pulse{0%,100%{opacity:.45}50%{opacity:1}}' +
       '.dsh-sb-shell [data-sb] .sb-ok{color:#00e676}' +
       '.dsh-sb-shell [data-sb] .sb-warn{color:#ffc400}' +
       '.dsh-sb-shell [data-sb] .sb-bad{color:#ff5252}' +
@@ -155,6 +178,10 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-wave .sb-wave-scroll{animation-timing-function:steps(8,end)!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-wave .sb-wave-front{filter:none}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-step{animation-timing-function:steps(4,end)!important;box-shadow:none!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-io .sb-out-arrow{animation-timing-function:steps(2,end)!important}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-io .sb-out-arrow,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-io .sb-in-arrow{text-shadow:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-lite] .sb-io .sb-out-arrow{animation:none;text-shadow:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-lite] .sb-io .sb-in-arrow{text-shadow:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-wave .sb-wave-front{filter:none}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-step.done{box-shadow:none}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flower,' +
@@ -1208,6 +1235,29 @@ window.__ModuleLoader__.load({
       const metric = (key, className, title, children) =>
         h('span', { key: key, className: 'dsh-sb-metric ' + className, title: title }, children);
 
+      /* The token split, in the strip's own language: two directions with their
+         own colour, an arrow that carries the same glow the lane does, and - the
+         only live part - the outgoing arrow pulses while a turn is decoding,
+         because that is the half that is actually moving. Incoming prompt tokens
+         are already fixed by the time they are sent. */
+      const io = h(
+        'span',
+        { key: 'split', className: 'dsh-sb-metric sb-io', title: t('metric.split') },
+        h(
+          'span',
+          { className: 'sb-in', title: t('metric.in') },
+          h('b', { className: 'sb-in-arrow', 'aria-hidden': true }, '\u2191'),
+          h('span', { className: 'sb-io-v' }, compact(uncachedIn)),
+        ),
+        h('span', { className: 'sb-io-sep', 'aria-hidden': true }, '/'),
+        h(
+          'span',
+          { className: 'sb-out', title: t('metric.out') },
+          h('b', { className: 'sb-out-arrow', 'aria-hidden': true }, '\u2193'),
+          h('span', { className: 'sb-io-v' }, compact(outTokens)),
+        ),
+      );
+
       const rightGroup = h(
         'div',
         { className: 'sb-group end' },
@@ -1215,7 +1265,7 @@ window.__ModuleLoader__.load({
           ? metric('cache', 'dsh-sb-nodata', t('metric.cache.pending'), '\u26A1 \u2014')
           : metric('cache', cacheTone(cachePercent), t('metric.cache') + ' ' + cachePercent + '%', ['\u26A1 ', String(cachePercent), '%', ' ', blockMeter]),
         h('span', { className: 'sb-sep' }, '\u00B7'),
-        metric('split', 'dsh-sb-split dsh-sb-dim', t('metric.split'), '\u2191' + compact(uncachedIn) + ' \u2193' + compact(outTokens)),
+        io,
         h('span', { className: 'sb-sep' }, '\u00B7'),
         metric('wall', 'dsh-sb-dim', t('metric.wall'), '\u23F1 ' + duration(wallMs)),
       );
@@ -1503,6 +1553,8 @@ window.__ModuleLoader__.load({
       'metric.cache': 'prompt tokens served from cache —',
       'metric.cache.pending': 'no cached prompt sample yet',
       'metric.split': 'uncached input · output',
+      'metric.in': 'prompt tokens sent to the model, excluding cache hits',
+      'metric.out': 'tokens the model has returned this session',
       'metric.wall': 'model plus tool wall time this session',
       'card.title': 'status bar',
       'card.state': 'state',
@@ -1560,6 +1612,8 @@ window.__ModuleLoader__.load({
       'metric.cache': '缓存命中的提示词比例 —',
       'metric.cache.pending': '尚无缓存样本',
       'metric.split': '未缓存输入 · 输出',
+      'metric.in': '发给模型的未缓存提示词 token',
+      'metric.out': '本会话模型已返回的 token',
       'metric.wall': '本会话模型与工具耗时',
       'card.title': '状态栏',
       'card.state': '状态',
