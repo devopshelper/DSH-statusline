@@ -3,12 +3,12 @@
 A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits in a dock cell of its own under the composer, beside the harness's own status pills — nothing is hidden or replaced.
 
 ```
-✻ DeepSeek Harness · ✦ Flibbertigibbeting...  · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
-✻ DeepSeek Harness · ✦ Crunched for 4s        · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
-✻ DeepSeek Harness · ◌ in the ether Zzzz      · ••••••••   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ✦ Flibbertigibbeting...  · •••••••• · ▣▣◧▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ✦ Crunched for 4s        · •••••••• · ▣▣▣▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
+✻ ◇ deepseek-v4.1-flash · ◌ in the ether Zzzz      · ••••••••           ⚡99% ▰▰▰▰▰ · ↑1.4M ↓18k · ⏱ 15m
 ```
 
-The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter. A `demo` toggle in the card plays the whole working state on demand, so you can look at the motion without spending a prompt.
+The facts the shipped pills report — decode rate, cache-hit share, input/output split, wall time — rendered as a terminal strip that breathes at 16 bpm while working and 12 bpm while idle. The chip names the model that is actually running, with a family mark; the agent's own checklist appears beside the flow lane as one box per step. Billed totals and context occupancy stay in the hover card rather than competing with the harness's own context meter. A `demo` toggle in the card plays the whole working state on demand, so you can look at the motion without spending a prompt, and the card carries `w` / `h` steppers that resize the strip where you want it.
 
 ## Status text
 
@@ -79,14 +79,18 @@ Everything comes from session projections — no polling, no client-side folding
 | `tokenUsage` | cache-hit % (`cacheRead / promptSide`), `↑uncached ↓output`, and the card's billed total (`uncached + output + cacheRead + cacheWrite`) |
 | `contextPressure` | `projectedTokens ?? pressureTokens` / `contextWindow` → ctx %, clamped at 100 (card only) |
 | `contextBreakdown` | surface composition, shown in the card |
+| `modelSelection` | the chip's model name and reasoning effort (`next ?? lastUsed`, so a blank session and a settled one both read) |
+| `todos` | the step boxes (the same projection the harness's own checklist dock reads) |
 
 Busy state comes from `useSessionStatus` — the session status stream, never token activity — so the breath cannot flicker idle between tool calls.
+
+`modelSelection` and `todos` are optional: a host that does not publish them gets the plain `DeepSeek Harness` chip and no boxes, never a blank chip or a crash. Everything is shape-checked before it is rendered.
 
 ## Interactions
 
 | Action | Result |
 |---|---|
-| hover the `✻ DeepSeek Harness` chip | card with turns/steps, decode rate, billed tokens, cache, context occupancy, surface + 12 palette swatches + the toggles |
+| hover the chip | card with turns/steps, decode rate, billed tokens, cache, context occupancy, surface + the size steppers + 12 palette swatches + the toggles |
 | click the chip | pin / unpin the card |
 | click anywhere on the strip | converging wave crests, fired from the click point |
 | palette swatch | repaints every glow (four custom properties carry the whole theme) |
@@ -95,10 +99,30 @@ Busy state comes from `useSessionStatus` — the session status stream, never to
 | `beads` / `bpm` / `water` | cycles the flow lane between travelling beads, a heartbeat trace and scrolling water |
 | `demo` | rehearses the working state without sending a prompt |
 | `above` / `corner` | where the card hangs off the strip (see below) |
+| `w − / +` | widens or narrows the strip: 900 → 980 → 1120 → 1280 → 1500 → full |
+| `h − / +` | heightens or flattens it: vertical padding 2 → 4 → 6 → 9 → 12 → 16 → 20 px |
 | drag the card header | moves the card anywhere; double-click the header to put it back |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+
+## The model chip
+
+The chip names the model the session is actually running instead of the harness brand: a small family mark, the model id verbatim, and the reasoning effort when the adapter reports one. The harness ships no provider artwork, so the marks are original geometric hints keyed by family (`deepseek`, `claude`, `openai`, `gemini`, `llama`, `mistral`, `qwen`, `moonshot`, `grok`, and a plain tile for anything else) — a hint, not a vendor logo, and they inherit the accent colour so they follow the palette.
+
+The id is shown as the provider spells it (`deepseek-v4.1-flash`, not `DeepSeek V4.1 Flash`). Prettifying reads nicer and makes it harder to check against the model selector; the chip truncates past 18ch instead of pushing the metrics along. The full `provider/model · effort` is in the chip's tooltip, and clicking still opens the card.
+
+## Step boxes
+
+Beside the flow lane the strip mirrors the agent's checklist as boxes instead of text:
+
+| State | Box |
+|---|---|
+| `completed` | filled with the accent, one pop on arrival |
+| `in_progress` | filled with the second accent, pulsing — this is the step being worked on |
+| `pending` | hollow, dimmed |
+
+Capped at 10 boxes with a `+N` overflow count, so a long checklist cannot push the metrics off the line. The tooltip is `2/7 · first item · second item · …`. Boxes are keyed by position *and* state, which is what lets a box that has just completed pop once instead of mutating silently.
 
 ## Card placement
 
@@ -309,4 +333,6 @@ icon.svg             original artwork
 - Stacking relies on `:has()` matching the strip's own container. It is deliberately written against our element rather than the owner's classes, so the failure mode is "pills sit beside the strip again", not a broken layout elsewhere.
 - The card's floating layer is the one place this plugin leaves the dock. It is portal-ed onto `<body>` because inside the dock the compose box painted over it; see [the floating layer](#the-cards-floating-layer). `_scratch/render-test.mjs` covers the jump (portal target, layer rectangle, z-index, palette attributes, tool row) without a browser.
 - `🪟` and `📦` rendered as tofu in the composer font stack, so `ctx` and `tok` were plain text (and are now gone).
+- The provider marks are hand-drawn geometry, not vendor logos: the harness ships no provider artwork, and shipping someone's logo in a status bar is a licensing question a strip should not answer. If a mark is wrong for your provider, the family table in `client.src.js` is the one place to fix it.
+- The width stepper stops at 900px rather than shrinking further. The row is `nowrap` and the status slot is a fixed 27ch by design, so a narrower strip would spill its own contents rather than reflow.
 - Visual verification is per-screenshot; there is no browser automation in this setup.

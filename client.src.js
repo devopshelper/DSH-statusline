@@ -48,7 +48,31 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .dsh-sb-flow,.dsh-sb-shell [data-sb] .sb-sep,.dsh-sb-shell [data-sb] .dsh-sb-chip,.dsh-sb-shell [data-sb] .dsh-sb-metric{flex:0 0 auto}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-chip{display:inline-flex;align-items:center;gap:6px;padding:1px 6px 1px 3px;margin-left:-3px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;cursor:help}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-chip:hover{background:rgba(var(--sb-glow),.10)}' +
-      '.dsh-sb-shell [data-sb] .dsh-sb-brand{font-weight:600;opacity:.92;white-space:nowrap}' +
+      '.dsh-sb-shell [data-sb] .dsh-sb-brand{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:18ch;font-weight:600;opacity:.92;white-space:nowrap}' +
+      /* The model chip: family mark plus the model id it is actually running.
+         The id is shown verbatim - a prettified "DeepSeek V4.1 Flash" would be
+         nicer to read and worse to check against the model selector - and it
+         truncates rather than pushing the strip around on a long id. */
+      '.dsh-sb-shell [data-sb] .sb-mark{flex:0 0 auto;width:11px;height:11px;color:var(--sb-accent);opacity:.95}' +
+      '.dsh-sb-shell [data-sb] .sb-modelname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.dsh-sb-shell [data-sb] .sb-effort{flex:0 0 auto;font-size:9.5px;font-weight:500;letter-spacing:.4px;text-transform:uppercase;opacity:.55}' +
+      /* ---- the agent's checklist, as boxes ----------------------------------
+         Same information the harness's own checklist dock carries, compressed
+         to the shape of the work: one box per step, filled when done, pulsing
+         while it is the step being worked on, hollow while it waits. Capped, so
+         a long checklist cannot push the metrics off the line. */
+      '.dsh-sb-shell [data-sb] .sb-steps{display:inline-flex;align-items:center;gap:3px;flex:0 0 auto}' +
+      '.dsh-sb-shell [data-sb] .sb-step{display:inline-block;width:6px;height:6px;border-radius:2px;border:1px solid rgba(var(--sb-glow),.5);background:transparent}' +
+      '.dsh-sb-shell [data-sb] .sb-step.pending{opacity:.5}' +
+      '.dsh-sb-shell [data-sb] .sb-step.active{background:var(--sb-accent2);border-color:transparent;animation:sb-step-pulse 1.1s ease-in-out infinite}' +
+      '.dsh-sb-shell [data-sb] .sb-step.done{background:var(--sb-accent);border-color:transparent;box-shadow:0 0 6px rgba(var(--sb-glow),.5);animation:sb-step-pop .34s ease-out 1}' +
+      '.dsh-sb-shell [data-sb] .sb-step-more{font-size:9.5px;font-weight:700;opacity:.55;margin-left:1px}' +
+      '@keyframes sb-step-pulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.4);opacity:1}}' +
+      '@keyframes sb-step-pop{0%{transform:scale(.35)}60%{transform:scale(1.35)}100%{transform:scale(1)}}' +
+      /* Size steppers in the card: label | - | value | + for each axis. */
+      '.dsh-sb-shell [data-sb] .sb-size{display:flex;align-items:center;gap:5px;margin-top:7px;pointer-events:auto;font-size:9.5px}' +
+      '.dsh-sb-shell [data-sb] .sb-size .sb-tool-k{letter-spacing:.6px}' +
+      '.dsh-sb-shell [data-sb] .sb-size .sb-tool-v{min-width:28px}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-metric{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-variant-numeric:tabular-nums}' +
       '.dsh-sb-shell [data-sb] .dsh-sb-dim{opacity:.82}' +
       '.dsh-sb-shell [data-sb] .sb-ok{color:#00e676}' +
@@ -127,7 +151,9 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flow-gear{text-shadow:none}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-wave .sb-wave-scroll{animation-timing-function:steps(8,end)!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-wave .sb-wave-front{filter:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-step{animation-timing-function:steps(4,end)!important;box-shadow:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-lite] .sb-wave .sb-wave-front{filter:none}' +
+      '.dsh-sb-shell [data-sb][data-sb-lite] .sb-step.done{box-shadow:none}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-flower,' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-dots i,' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-zzz i{animation-timing-function:steps(4,end)!important;text-shadow:none!important}' +
@@ -299,6 +325,20 @@ window.__ModuleLoader__.load({
     const STORE_PIXEL = 'dsh.statusbar.pixel';
     const STORE_FLOW = 'dsh.statusbar.flow';
     const STORE_ANCHOR = 'dsh.statusbar.anchor';
+    const STORE_WIDTH = 'dsh.statusbar.width';
+    const STORE_HEIGHT = 'dsh.statusbar.height';
+
+    /* Size steppers. The strip is capped at 980px by the shell so it lines up
+       with the conversation column; `full` drops the cap for readers who want
+       the line to run edge to edge. Height is the bar's vertical padding - the
+       only honest way to make a flex row taller without changing its type.
+       The narrowest step stops at 900 rather than shrinking to nothing: the row
+       is `flex-wrap:nowrap` (one line is the whole idea) and the status slot is a
+       fixed 27ch, so a genuinely narrow strip would spill its own contents. */
+    const WIDTH_STEPS = [900, 980, 1120, 1280, 1500, 'full'];
+    const HEIGHT_STEPS = [2, 4, 6, 9, 12, 16, 20];
+    const WIDTH_DEFAULT = 1;
+    const HEIGHT_DEFAULT = 2;
 
     /* Where the card hangs off the strip. `above` is the original: left edges
        aligned, sitting over the strip. `corner` drops the card's bottom-right
@@ -420,6 +460,101 @@ window.__ModuleLoader__.load({
       return typeof value === 'number' && Number.isFinite(value) ? value : 0;
     }
 
+    /* ---- the live model ---------------------------------------------------
+       `modelSelection` is the durable projection the harness's own model
+       selector reads: `{ next, lastUsed }`, each a `{ provider, model,
+       reasoningEffort? }`. `next` is what the session will run, `lastUsed` what
+       it ran last, so the pair covers a blank session and a settled one. */
+    function readSelection(raw) {
+      if (raw === null || typeof raw !== 'object') return null;
+      const candidate = raw.next || raw.lastUsed;
+      if (candidate === null || typeof candidate !== 'object') return null;
+      if (typeof candidate.model !== 'string' || candidate.model.length === 0) return null;
+      return {
+        provider: typeof candidate.provider === 'string' ? candidate.provider : '',
+        model: candidate.model,
+        effort: typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort : '',
+      };
+    }
+
+    /**
+     * Which family mark to draw. The harness ships no provider artwork, so these
+     * are original geometric marks keyed by the model's family - a hint, not a
+     * vendor logo, and every one of them inherits the strip's text colour so it
+     * follows the palette like the rest of the chrome.
+     */
+    function modelFamily(selection) {
+      const text = (selection.provider + ' ' + selection.model).toLowerCase();
+      if (/deepseek/.test(text)) return 'deepseek';
+      if (/claude|anthropic/.test(text)) return 'claude';
+      if (/gpt|openai|^o[134]\b/.test(text)) return 'openai';
+      if (/gemini|google|gemma/.test(text)) return 'gemini';
+      if (/llama|meta/.test(text)) return 'llama';
+      if (/mistral|codestral/.test(text)) return 'mistral';
+      if (/qwen|tongyi/.test(text)) return 'qwen';
+      if (/kimi|moonshot/.test(text)) return 'moonshot';
+      if (/grok|xai/.test(text)) return 'grok';
+      return 'unknown';
+    }
+
+    function providerMark(family) {
+      const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round' };
+      const solid = { fill: 'currentColor', stroke: 'none' };
+      const shape = (tag, props) => h(tag, Object.assign({ key: tag + (props.d || props.cx || '') }, props));
+      const body = {
+        deepseek: [
+          shape('path', Object.assign({ d: 'M1.2 7.2c1.6-2.6 3.4-2.6 4.6-.9s2.9 1.8 4-1' }, stroke)),
+          shape('path', Object.assign({ d: 'M1.2 10.4c1.6-2.6 3.4-2.6 4.6-.9s2.9 1.8 4-1' }, stroke)),
+          shape('circle', Object.assign({ cx: 6, cy: 3.1, r: 1.1 }, solid)),
+        ],
+        claude: [shape('path', Object.assign({ d: 'M6 1v10M1 6h10M2.5 2.5l7 7M9.5 2.5l-7 7' }, stroke))],
+        openai: [
+          shape('path', Object.assign({ d: 'M6 1.1 10.1 3.5v4.9L6 10.9 1.9 8.4V3.5z' }, stroke)),
+          shape('circle', Object.assign({ cx: 6, cy: 6, r: 1.5 }, solid)),
+        ],
+        gemini: [shape('path', Object.assign({ d: 'M6 .9 7.7 4.3 11.1 6 7.7 7.7 6 11.1 4.3 7.7.9 6 4.3 4.3z' }, solid))],
+        llama: [
+          shape('circle', Object.assign({ cx: 4.3, cy: 6, r: 2.7 }, stroke)),
+          shape('circle', Object.assign({ cx: 7.7, cy: 6, r: 2.7 }, stroke)),
+        ],
+        mistral: [
+          shape('rect', Object.assign({ x: 1.6, y: 2.2, width: 1.6, height: 7.6, rx: 0.8 }, solid)),
+          shape('rect', Object.assign({ x: 5.2, y: 1.2, width: 1.6, height: 9.6, rx: 0.8 }, solid)),
+          shape('rect', Object.assign({ x: 8.8, y: 3.6, width: 1.6, height: 4.8, rx: 0.8 }, solid)),
+        ],
+        qwen: [
+          shape('path', Object.assign({ d: 'M6 1.2 10.2 3.6v4.8L6 10.8 1.8 8.4V3.6z' }, stroke)),
+          shape('circle', Object.assign({ cx: 6, cy: 6, r: 0.9 }, solid)),
+        ],
+        moonshot: [shape('path', Object.assign({ d: 'M7.6 1.1a5.1 5.1 0 1 0 .1 9.9 4.1 4.1 0 0 1-.1-9.9z' }, solid))],
+        grok: [shape('path', Object.assign({ d: 'M2.4 2.4 9.6 9.6M9.6 2.4 2.4 9.6' }, stroke))],
+        unknown: [
+          shape('rect', Object.assign({ x: 2, y: 2, width: 8, height: 8, rx: 2.2 }, stroke)),
+          shape('circle', Object.assign({ cx: 6, cy: 6, r: 1.1 }, solid)),
+        ],
+      }[family] || [];
+      return h(
+        'svg',
+        { className: 'sb-mark', viewBox: '0 0 12 12', 'aria-hidden': true, focusable: 'false' },
+        body,
+      );
+    }
+
+    /* ---- the step boxes ---------------------------------------------------
+       `todos` is the same projection the harness's own checklist dock reads:
+       `[{ content, status: 'pending' | 'in_progress' | 'completed' }]`. The
+       strip mirrors it as boxes rather than text, so the shape of the work is
+       readable without reading the list again. */
+    const STEPS_MAX = 10;
+    function readSteps(raw) {
+      return Array.isArray(raw) ? raw.filter((item) => item !== null && typeof item === 'object' && typeof item.status === 'string') : [];
+    }
+    function stepTone(status) {
+      if (status === 'completed') return 'done';
+      if (status === 'in_progress') return 'active';
+      return 'pending';
+    }
+
     /** 3821456 → "3.8M", 42100 → "42.1k", 820 → "820". */
     function compact(value) {
       const n = num(value);
@@ -505,10 +640,28 @@ window.__ModuleLoader__.load({
       const identity = React.useCallback((value) => value, []);
       const realWorking = readRunning(typeof statusHook === 'function' ? statusHook(identity) : null, props.sessionId) === true;
 
-      const stats = useFaceValue(props.useProjection, 'sessionStats');
-      const usage = useFaceValue(props.useProjection, 'tokenUsage');
-      const pressure = useFaceValue(props.useProjection, 'contextPressure');
-      const breakdown = useFaceValue(props.useProjection, 'contextBreakdown');
+      /* One guarded door to the projection table. A host that does not publish a
+         key, or a projection that throws while the session is mid-teardown, must
+         cost that one figure rather than the whole strip: the hook itself is
+         always called, only the lookup is caught. */
+      const projectionHook = (key) => {
+        try {
+          return typeof props.useProjection === 'function' ? props.useProjection(key) : undefined;
+        } catch (error) {
+          return undefined;
+        }
+      };
+
+      const stats = useFaceValue(projectionHook, 'sessionStats');
+      const usage = useFaceValue(projectionHook, 'tokenUsage');
+      const pressure = useFaceValue(projectionHook, 'contextPressure');
+      const breakdown = useFaceValue(projectionHook, 'contextBreakdown');
+      /* The two faces the strip names instead of counting: which model this
+         session runs, and what the agent's own checklist currently says. Both
+         are optional - a host without them gets the plain brand chip and no
+         boxes, never a blank or a crash. */
+      const modelFace = useFaceValue(projectionHook, 'modelSelection');
+      const todoFace = useFaceValue(projectionHook, 'todos');
 
       const [theme, setTheme] = React.useState(() => readStored(STORE_THEME, 'deepseek', THEME_IDS));
       const [lite, setLite] = React.useState(() => readStored(STORE_FX, 'off') === 'on');
@@ -541,6 +694,16 @@ window.__ModuleLoader__.load({
          one frame rather than vanishing. Appended last so the state slots above
          keep the order the render test asserts against. */
       const [cardBox, setCardBox] = React.useState(null);
+      /* Size steppers, persisted as the step index rather than the pixel value
+         so the preset list can grow without stranding a stored width. */
+      const [widthStep, setWidthStep] = React.useState(() => {
+        const stored = Number(readStored(STORE_WIDTH, String(WIDTH_DEFAULT)));
+        return Number.isInteger(stored) && stored >= 0 && stored < WIDTH_STEPS.length ? stored : WIDTH_DEFAULT;
+      });
+      const [heightStep, setHeightStep] = React.useState(() => {
+        const stored = Number(readStored(STORE_HEIGHT, String(HEIGHT_DEFAULT)));
+        return Number.isInteger(stored) && stored >= 0 && stored < HEIGHT_STEPS.length ? stored : HEIGHT_DEFAULT;
+      });
       const working = realWorking || demo;
 
       const barRef = React.useRef(null);
@@ -874,6 +1037,104 @@ window.__ModuleLoader__.load({
         t(working ? flowCopy.busy : flowCopy.idle) +
         (working && rate > 0 ? ' \u00B7 ' + Math.round(rate) + ' tok/s' : '');
 
+      /* ---- who is running, and on what ------------------------------------ */
+      const selection = readSelection(modelFace);
+      const modelTitle = selection
+        ? (selection.provider === '' ? selection.model : selection.provider + '/' + selection.model) +
+          (selection.effort === '' ? '' : ' \u00B7 ' + selection.effort)
+        : '';
+
+      /* ---- the agent's own checklist, mirrored as boxes -------------------- */
+      const todoSteps = readSteps(todoFace);
+      const stepsDone = todoSteps.filter((item) => item.status === 'completed').length;
+      const stepsTitle =
+        todoSteps.length === 0
+          ? ''
+          : stepsDone + '/' + todoSteps.length + ' \u00B7 ' + todoSteps.map((item) => item.content || '?').join(' \u00B7 ');
+      const stepBoxes =
+        todoSteps.length === 0
+          ? null
+          : h(
+              'span',
+              { className: 'sb-steps', title: stepsTitle, 'aria-label': stepsTitle },
+              todoSteps.slice(0, STEPS_MAX).map((item, index) =>
+                h('i', {
+                  /* Keyed by state as well as position: a box that just turned
+                     done is a new node, which is what lets it pop once. */
+                  key: index + ':' + item.status,
+                  className: 'sb-step ' + stepTone(item.status),
+                }),
+              ),
+              todoSteps.length > STEPS_MAX ? h('b', { className: 'sb-step-more' }, '+' + (todoSteps.length - STEPS_MAX)) : null,
+            );
+
+      /* ---- size steppers --------------------------------------------------- */
+      const widthValue = WIDTH_STEPS[widthStep];
+      const heightValue = HEIGHT_STEPS[heightStep];
+      const widthLabel = widthValue === 'full' ? t('size.full') : String(widthValue);
+      const stepWidth = (delta) => {
+        setWidthStep((previous) => {
+          const next = Math.max(0, Math.min(WIDTH_STEPS.length - 1, previous + delta));
+          writeStored(STORE_WIDTH, String(next));
+          return next;
+        });
+      };
+      const stepHeight = (delta) => {
+        setHeightStep((previous) => {
+          const next = Math.max(0, Math.min(HEIGHT_STEPS.length - 1, previous + delta));
+          writeStored(STORE_HEIGHT, String(next));
+          return next;
+        });
+      };
+      const sizeRow = h(
+        'div',
+        { className: 'sb-size' },
+        h('span', { className: 'sb-tool-k' }, t('size.width')),
+        h(
+          'button',
+          { type: 'button', className: 'sb-mini', title: t('size.narrower'), 'aria-label': t('size.narrower'), onClick: (event) => { event.stopPropagation(); stepWidth(-1); } },
+          '\u2212',
+        ),
+        h('span', { className: 'sb-tool-v' }, widthLabel),
+        h(
+          'button',
+          { type: 'button', className: 'sb-mini', title: t('size.wider'), 'aria-label': t('size.wider'), onClick: (event) => { event.stopPropagation(); stepWidth(1); } },
+          '+',
+        ),
+        h('span', { className: 'sb-tool-k' }, t('size.height')),
+        h(
+          'button',
+          { type: 'button', className: 'sb-mini', title: t('size.shorter'), 'aria-label': t('size.shorter'), onClick: (event) => { event.stopPropagation(); stepHeight(-1); } },
+          '\u2212',
+        ),
+        h('span', { className: 'sb-tool-v' }, String(heightValue)),
+        h(
+          'button',
+          { type: 'button', className: 'sb-mini', title: t('size.taller'), 'aria-label': t('size.taller'), onClick: (event) => { event.stopPropagation(); stepHeight(1); } },
+          '+',
+        ),
+      );
+
+      /* The strip's own size, expressed through the two custom properties the
+         vendored stylesheet already reads. Nothing here needs new CSS geometry:
+         the card, the lane and the tail all resolve against this box. */
+      const barStyle = {
+        '--sb-shell-max': widthValue === 'full' ? 'none' : widthValue + 'px',
+        '--sb-pad-y': heightValue + 'px',
+      };
+
+      /* The chip's label: the model that is running, with a family mark, or the
+         old brand text when no model projection is available. */
+      const brand = selection
+        ? h(
+            'span',
+            { className: 'dsh-sb-brand', title: modelTitle },
+            providerMark(modelFamily(selection)),
+            h('span', { className: 'sb-modelname' }, selection.model),
+            selection.effort === '' ? null : h('span', { className: 'sb-effort' }, selection.effort),
+          )
+        : h('span', { className: 'dsh-sb-brand' }, 'DeepSeek Harness');
+
       /* The lane itself. Three skins, one cell: the strip must not reshuffle
          when the reader cycles them, so every skin is the same 128x17 box. */
       const lane =
@@ -964,6 +1225,7 @@ window.__ModuleLoader__.load({
         'data-sb-lite': lite ? '' : undefined,
         'data-sb-pixel': pixel ? '' : undefined,
         ref: barRef,
+        style: barStyle,
         role: 'group',
         'aria-label': t('bar.label') + ': ' + stateLabel,
         onMouseEnter: () => setHover(true),
@@ -979,7 +1241,7 @@ window.__ModuleLoader__.load({
         {
           type: 'button',
           className: 'dsh-sb-chip',
-          title: t('card.hint'),
+          title: modelTitle === '' ? t('card.hint') : modelTitle + ' \u00B7 ' + t('card.hint'),
           'aria-expanded': cardOpen ? 'true' : 'false',
           onMouseEnter: openCard,
           onMouseLeave: closeCardSoon,
@@ -992,7 +1254,7 @@ window.__ModuleLoader__.load({
           },
         },
         h('span', { className: 'sb-flower' + (working ? '' : ' idle'), 'aria-hidden': true }, GLYPHS[glyph]),
-        h('span', { className: 'dsh-sb-brand' }, 'DeepSeek Harness'),
+        brand,
       );
 
       const row = (label, value) =>
@@ -1030,6 +1292,7 @@ window.__ModuleLoader__.load({
             row(t('card.cache'), cachePercent === null ? '\u2014' : cachePercent + '%'),
             row(t('card.context'), contextPercent === null ? '\u2014' : contextPercent + '% (' + compact(occupied) + ' / ' + compact(windowSize) + ')'),
             row(t('card.surface'), surfaceTokens === null ? '\u2014' : compact(surfaceTokens)),
+            sizeRow,
             h(
               'div',
               { className: 'sb-palette' },
@@ -1193,6 +1456,8 @@ window.__ModuleLoader__.load({
             ),
             h('span', { className: 'sb-sep' }, '\u00B7'),
             lane,
+            stepBoxes === null ? null : h('span', { className: 'sb-sep' }, '\u00B7'),
+            stepBoxes,
           ),
           rightGroup,
           h('span', { className: 'sb-splash', ref: splashRef, 'aria-hidden': true }, h('i', null), h('b', null), h('u', null)),
@@ -1253,6 +1518,13 @@ window.__ModuleLoader__.load({
       'anchor.title.tight': 'corner needs a card-width of room to the left of the strip - none here, so the card hangs above',
       'card.drag': 'drag to move - double-click to put it back',
       'card.close': 'close',
+      'size.width': 'w',
+      'size.height': 'h',
+      'size.full': 'full',
+      'size.narrower': 'narrow the strip by one step',
+      'size.wider': 'widen the strip by one step - full lets it run edge to edge',
+      'size.shorter': 'flatten the strip by one step',
+      'size.taller': 'heighten the strip by one step',
     };
     const zh = {
       'bar.label': '状态栏',
@@ -1301,6 +1573,13 @@ window.__ModuleLoader__.load({
       'anchor.title.tight': '角上模式需要状态条左侧留出约一张卡片的宽度 — 这里放不下，卡片先挂在上面',
       'card.drag': '拖动可移动 — 双击复位',
       'card.close': '关闭',
+      'size.width': '宽',
+      'size.height': '高',
+      'size.full': '满宽',
+      'size.narrower': '把状态条收窄一档',
+      'size.wider': '把状态条加宽一档 — 满宽时铺满整行',
+      'size.shorter': '把状态条压扁一档',
+      'size.taller': '把状态条加高一档',
     };
 
     /**
