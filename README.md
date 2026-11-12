@@ -1,6 +1,6 @@
 # DSH Statusline
 
-A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) that sits in a dock cell of its own under the composer, beside the harness's own status pills — nothing is hidden or replaced.
+A living status line for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), offered in two places: a bar docked under the composer (which replaces the harness's own pills line while it is on) and a floating card you can drag anywhere. Each has its own switch, so either alone, both, or neither are valid.
 
 ```
 ✻ ◇ deepseek-v4.1-flash · ✦ Flibbertigibbeting...  · •••••••• · ▣▣◧▢▢   ⚡99% ▰▰▰▰▰ · ↑1.4M / ↓18k · ⏱ 15m
@@ -106,9 +106,10 @@ Every tool button in the card reads as **the state it is in**, and a latched tog
 | `w − / +` | widens or narrows the strip: 900 → 980 → 1120 → 1280 → 1500 → full |
 | `h − / +` | heightens or flattens it: vertical padding 2 → 4 → 6 → 9 → 12 → 16 → 20 px |
 | drag the card header | moves the card anywhere; double-click the header to put it back |
+| drag the floating card | moves it anywhere; double-click sends it back to the default seat |
 | `×` | closes the card, including a pinned one |
 
-Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.defaultbar"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
+Persisted choices: `localStorage["dsh.statusbar.theme"]`, `["dsh.statusbar.fx"]`, `["dsh.statusbar.pixel"]`, `["dsh.statusbar.flow"]`, `["dsh.statusbar.anchor"]`, `["dsh.statusbar.view"]`, `["dsh.statusbar.collapse"]`, `["dsh.statusbar.strip"]`, `["dsh.statusbar.float"]`, `["dsh.statusbar.floatpos"]`, `["dsh.statusbar.width"]`, `["dsh.statusbar.height"]`.
 
 ## The settings page
 
@@ -117,7 +118,7 @@ The same preferences are editable from **Settings → Plugins**, as a tab of the
 | | |
 |---|---|
 | seats | `settings.plugins.tab` next to the shipped "all plugins" tab |
-| edits | palette (12), panel view, both bar switches, full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
+| edits | palette (12), panel view, the two bars (line / floating card), full-surface FX, low frame rate, flow lane (all five skins), card anchor, width, height, and a reset |
 | preview | a real strip, not a mock: same classes, same attributes, same theme variables, so what you pick is what the glow does |
 | storage | the same browser-local keys the strip reads; nothing is written to the profile |
 | liveness | every write fires `dsh-statusbar:settings` on `window`, and every mounted strip (and the page itself) re-reads its keys — so the strip behind the settings updates as you click, and so does the page if you change something from the card |
@@ -163,16 +164,16 @@ The meters are twenty blocks of five percent. Activity is scaled against 200 tok
 
 ### Two bars, two switches
 
-The harness draws its own pills line under ours, and ours is a line of its own. Each is switched independently in Settings → Plugins:
+The same strip is offered in two places, each with its own switch in Settings → Plugins:
 
-| switch | off means |
-|---|---|
-| **harness bar** | the harness's own pills line is hidden; ours stays |
-| **status line** | our line is hidden and the dock keeps only a small pill — the chip and a state dot — so the panel still has somewhere to open from |
+| switch | on means | off means |
+|---|---|---|
+| **status line** | the strip sits in the dock under the composer and owns the hover panel | nothing is docked; the harness's own pills return |
+| **status card** | the strip also floats over the conversation, draggable by its body | no floating bar |
 
-Those are the two rows you can see at the composer: hiding one never hides the other, and both are persisted.
+They are independent: line only, card only, both, or neither. Both on is two copies of the same line, one docked and one floating; the floating copy is a bar, not a second panel.
 
-The hiding rule is structural and gated on our own marker class, so it can only ever hide siblings of the shell that are not the shell and not the context ring:
+While the docked line is on, it replaces the harness's own pills instead of duplicating them. The hiding rule is structural and gated on our own marker class, so it can only hide siblings of the shell that are not the shell and not the context ring:
 
 ```css
 :is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default) > *
@@ -181,11 +182,13 @@ The hiding rule is structural and gated on our own marker class, so it can only 
   :not(:has(svg[viewBox="0 0 14 14"])) { display: none }
 ```
 
-The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching and the pills come back; nothing else is ever hidden.
+With the line off there is no shell in the dock, so nothing is hidden and the shipped pills are back. The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching; nothing else is ever hidden.
 
-### The panel on its own
+### The floating card
 
-With the status line off, the panel stops being a hover card. It opens from the pill, cannot be hovered shut (there is no strip to return to), and its dragged position is **persisted** in `dsh.statusbar.floatpos` — docked panels do not keep a position, because theirs belongs to the strip and would drift away from it on the next measure. Double-clicking the panel header clears the stored position.
+The floating card is the same line, `position: fixed` on `<body>`, portalled there for the same reason the panel is (inside the dock it would lose to the compose box). It is dragged by its body anywhere in the window; the position is stored in viewport pixels under `dsh.statusbar.floatpos`, so it comes back where it was left. Double-clicking clears the stored position and returns it to the bottom-centre default seat.
+
+It deliberately has no panel: the chip does not pin, hovering does nothing, and there is no `card`/`board` expansion. The panel belongs to the docked line, which has an anchor to hang it from, so the floating card is unaffected by the card anchor setting, and the board is reachable while the docked line is on.
 
 ## Card placement
 
