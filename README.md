@@ -169,8 +169,12 @@ The rule is structural and gated on our own marker class, so it can only ever hi
 
 ```css
 :is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default) > *
-  :not(:has(.dsh-sb-shell)):not(:has(svg[viewBox="0 0 14 14"])) { display: none }
+  :not(.dsh-sb-shell)
+  :not(:has(.dsh-sb-shell))
+  :not(:has(svg[viewBox="0 0 14 14"])) { display: none }
 ```
+
+The first two exclusions are not the same test: `:not(.dsh-sb-shell)` protects the shell itself, `:not(:has(.dsh-sb-shell))` protects whatever wrapper holds it. `:has()` only looks at descendants, so the shell itself never matches the second one — an earlier version omitted the first and hid the strip along with the pills.
 
 If the owner restructures the dock the selector stops matching and the pills come back — the failure mode is "unchanged", not "something else hidden".
 

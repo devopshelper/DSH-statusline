@@ -219,12 +219,15 @@ window.__ModuleLoader__.load({
       '.dsh-sb-shell [data-sb] .sb-collapse{flex:0 0 auto;width:14px;padding:0;border:0;background:transparent;color:rgba(150,170,190,.8);font-size:8px;line-height:1;cursor:pointer}' +
       '.dsh-sb-shell [data-sb] .sb-collapse:hover{color:#fff}' +
       /* ---- hiding the harness's own pills -----------------------------------
-         Structural, and gated on our own marker class, so it can only ever hide
-         siblings of the shell that are not the shell itself and not the context
-         ring (the only other thing in that dock with a 14x14 svg). If the owner
-         restructures the dock the selector stops matching and the pills come
-         back - the failure mode is "unchanged", not "something else hidden". */
-      ':is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default)>*:not(:has(.dsh-sb-shell)):not(:has(svg[viewBox="0 0 14 14"])){display:none!important}' +
+         Structural, and gated on our own marker class. Three exclusions, and the
+         first two are not the same test: `:not(.dsh-sb-shell)` keeps the shell
+         itself, `:not(:has(.dsh-sb-shell))` keeps whatever wrapper holds it.
+         (`:has()` only looks at descendants, so the shell never matches the
+         second one - without the first, the rule hides our own strip.) The last
+         keeps the context ring, the only other child with a 14x14 svg. If the
+         owner restructures the dock the selector stops matching and the pills
+         come back; nothing else is ever hidden. */
+      ':is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default)>*:not(.dsh-sb-shell):not(:has(.dsh-sb-shell)):not(:has(svg[viewBox="0 0 14 14"])){display:none!important}' +
       '.dsh-sb-shell [data-sb] .sb-board{display:flex;flex-direction:column;gap:9px;margin-top:2px}' +
       '.dsh-sb-shell [data-sb] .sb-board-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 auto;min-width:0;font-size:11px;color:#fff}' +
       '.dsh-sb-shell [data-sb] .sb-board-state{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--sb-accent)}' +
