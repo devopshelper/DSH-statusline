@@ -348,60 +348,69 @@ The script uses `JSON.stringify` for the splice. That detail matters: serializin
 
 ## Install
 
-### Script
+### One command
+
+From PowerShell (Windows PowerShell 5.1 included):
 
 ```powershell
-.\install.cmd                       # double-click wrapper
-.\install.ps1 -DryRun               # print the plan, change nothing
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+irm https://raw.githubusercontent.com/devopshelper/DSH-statusline/main/install.ps1 | iex
 ```
 
-`install.ps1` performs both halves of an install, because only one of them is a pnpm command:
+From cmd.exe:
 
-1. `dsh plugin --profile <profile> add <this directory>` — links the package into the profile
-2. registers it in the profile's `dsh.profile.bundles` — **this is what actually activates it**, and it has no CLI
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/devopshelper/DSH-statusline/main/install.ps1 | iex"
+```
 
-It backs the profile manifest up before editing, restores it if registration fails, reads the result back to confirm, and is idempotent: re-running changes nothing and leaves no backup litter.
+It finds the DSH profile, the CLI/runtime (even when `dsh` is not on PATH or Node is not installed), and a checkout: an existing linked checkout is reused, otherwise the repo is cloned into `%LOCALAPPDATA%\DSH\dsh-statusline` (or downloaded as a zip when Git is missing). It then links the package into the profile and registers it in `dsh.profile.bundles`, which is the step that activates it. Re-running the same command pulls the checkout and relinks, so one command both installs and updates.
+
+Re-running is safe. An already-correct profile is left alone; a profile whose bundle list lost the package is repaired; a UTF-8 BOM on the profile manifest (which DSH cannot parse) is stripped. Start DeepSeek Harness once before the first install so the profile exists.
+
+After it finishes, reload the Web UI with **Ctrl+Shift+R**. If the strip is still absent, restart DeepSeek Harness: the client bundle is fetched once per module generation.
+
+### From a checkout
+
+```powershell
+.\install.cmd              # double-click install / repair
+.\update.cmd               # pull + relink
+.\install.ps1 -DryRun      # print the plan, change nothing
+```
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `-Profile` | `$env:DSH_PROFILE`, else `desktop` | profile under `%USERPROFILE%\.dsh\profiles` |
-| `-Source` | this script's directory | package directory to install |
-| `-DryRun` | — | print the plan, change nothing |
+| `-Profile` | `$env:DSH_PROFILE`, then desktop, web, or the only profile | profile under `%USERPROFILE%\.dsh\profiles` |
+| `-Source` | linked checkout, script dir, `-InstallDir` | package directory to install |
+| `-InstallDir` | `%LOCALAPPDATA%\DSH\dsh-statusline` | checkout cloned/downloaded when no source is found |
+| `-RepoUrl` / `-Branch` | this repo / `main` | where the checkout comes from |
+| `-DshPath` | `$env:DSH_CLI`, PATH, desktop runtime | explicit CLI |
+| `-Update` | — | pull (or re-download) and relink |
+| `-Force` | — | relink without pulling |
+| `-DryRun` | — | print, change nothing |
 
-Remove it again with `.\uninstall.cmd` (dry run: `.\uninstall.ps1 -DryRun`). Uninstalling restores the shipped pills, since they were only ever shadowed.
-
-> The `.cmd` wrappers exist because the default Windows execution policy blocks unsigned `.ps1` files.
+The `.cmd` wrappers exist because the default Windows execution policy blocks unsigned `.ps1` files. `uninstall.cmd` removes the package and its activation entry; the shipped pills come back, since they were only shadowed.
 
 ### From an agent session
 
 ```
 plugin_manager install_bundle  target: <absolute path to this directory>
+plugin_manager set_bundle      target: @local/dsh-statusbar  enabled: true
 ```
 
-Either route links the directory rather than copying it, so edits to `client.js` need a remove + add cycle (a fresh module generation) plus a page refresh.
+The first installs, the second only repairs the activation entry.
 
 ## Updating
 
-The install is a **link**, not a copy: the profile's `package.json` points at your checkout, which means the checkout *is* the installed code. There is no registry to pull from.
+Run the same one-liner:
 
 ```powershell
-cd <your checkout>
-git pull                     # client.js is committed, so this alone is a working update
-.\uninstall.ps1              # unregister + unlink
-.\install.ps1                # relink + register
+irm https://raw.githubusercontent.com/devopshelper/DSH-statusline/main/install.ps1 | iex
 ```
 
-Then reload the Harness Web UI with **Ctrl+Shift+R**. If the strip looks unchanged, restart DeepSeek Harness — the client bundle is fetched per module generation, and a running app can keep serving the previous one.
+From a checkout, `.\update.cmd` (or `.\install.ps1 -Update`) does the same: `git pull --ff-only`, then `dsh plugin remove` + `add` so DSH builds a new module generation, then re-registers the bundle. Reload with Ctrl+Shift+R; restart if the old strip is still on screen.
 
-The uninstall/install round-trip is what forces that new generation; `git pull` on its own changes files on disk, which the running page may never re-read.
+Settings survive: theme, pixel, FX, phrases, context and bar choices live in the browser's `localStorage`, not in the repo.
 
-- **No build step needed** for a normal update: `client.js` is committed. Run `node scripts/build.mjs` only if you edited `client.src.js` or `styles/statusbar.css`.
-- **From an agent session** the same cycle is `plugin_manager remove_bundle`, then `install_bundle` with the same directory.
-- **Check what you're running:** `git -C <checkout> log -1 --oneline`.
-- **Don't move or delete the checkout afterwards.** The profile points at it, so relocating it breaks the bundle on the next DSH start — re-run `install.ps1` from the new location if you do.
-
-Your settings survive an update: theme, pixel and FX choices live in the browser's `localStorage`, not in the repo.
+The install is a link, not a copy: the profile points at the checkout, so the checkout is the installed code. Do not move or delete it afterwards; re-run the one-liner from the new location if you do. `client.js` is committed, so a normal update needs no build step; the installer only rebuilds when a developer checkout has a newer `client.src.js` or `statusbar.css`.
 
 ## Recolouring DSH's own context meter
 

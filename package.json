@@ -20,6 +20,7 @@
     "scripts/*.mjs",
     "install.ps1",
     "install.cmd",
+    "update.cmd",
     "uninstall.ps1",
     "uninstall.cmd",
     "README.md"
