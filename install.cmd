@@ -6,5 +6,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" %*
 set "code=%errorlevel%"
 echo.
 if not "%code%"=="0" echo Installer exited with code %code%.
-pause
+if "%~1"=="" pause
 exit /b %code%

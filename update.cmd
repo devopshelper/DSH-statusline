@@ -6,5 +6,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" -Update %
 set "code=%errorlevel%"
 echo.
 if not "%code%"=="0" echo Updater exited with code %code%.
-pause
+if "%~1"=="" pause
 exit /b %code%
