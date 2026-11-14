@@ -269,9 +269,11 @@ window.__ModuleLoader__.load({
          purpose, which is the whole point of the switch. */
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card,.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card *{animation:none!important;transition:none!important}' +
       '.dsh-sb-shell [data-sb][data-sb-pixel] .sb-card{box-shadow:0 6px 14px rgba(0,0,0,.95)}' +
-      /* ---- hiding the harness's own pills -----------------------------------
+      /* ---- hiding the harness's own status --------------------------------
          Opt-out, not automatic: the `harness bar` switch in Settings puts the
-         marker on or off, and the rule below is the only consumer of it.
+         marker on or off, and the rule below is the only consumer of it. In this
+         harness version the composer dock's only shipped status is the context
+         ring, so that is what the switch hides.
          Structural, and gated on our own marker class. Three exclusions, and the
          first two are not the same test: `:not(.dsh-sb-shell)` keeps the shell
          itself, `:not(:has(.dsh-sb-shell))` keeps whatever wrapper holds it.
@@ -280,7 +282,7 @@ window.__ModuleLoader__.load({
          keeps the context ring, the only other child with a 14x14 svg. If the
          owner restructures the dock the selector stops matching and the pills
          come back; nothing else is ever hidden. */
-      ':is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default)>*:not(.dsh-sb-shell):not(:has(.dsh-sb-shell)):not(:has(svg[viewBox="0 0 14 14"])){display:none!important}' +
+      ':is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default)>*:not(.dsh-sb-shell):not(:has(.dsh-sb-shell)){display:none!important}' +
       '.dsh-sb-shell [data-sb] .sb-board{display:flex;flex-direction:column;gap:9px;margin-top:2px}' +
       '.dsh-sb-shell [data-sb] .sb-board-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 auto;min-width:0;font-size:11px;color:#fff}' +
       '.dsh-sb-shell [data-sb] .sb-board-state{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--sb-accent)}' +
@@ -1247,7 +1249,7 @@ window.__ModuleLoader__.load({
          the strip reports the same figures; switched on it comes back untouched
          and the strip sits above it. */
       const [harnessBar, setHarnessBar] = React.useState(
-        () => readStored(STORE_HARNESS, HIDE, [SHOW, HIDE]) === SHOW,
+        () => readStored(STORE_HARNESS, SHOW, [SHOW, HIDE]) === SHOW,
       );
       const stripHidden = strip === HIDE;
       const working = realWorking || demo;
@@ -1282,7 +1284,7 @@ window.__ModuleLoader__.load({
           setFloatOn(modes.float === SHOW);
           setPhrases(readPhrases());
           setContextOn(readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]) === SHOW);
-          setHarnessBar(readStored(STORE_HARNESS, HIDE, [SHOW, HIDE]) === SHOW);
+          setHarnessBar(readStored(STORE_HARNESS, SHOW, [SHOW, HIDE]) === SHOW);
           setFloatPos(readFloatBox());
         };
         window.addEventListener(SETTINGS_EVENT, sync);
@@ -2487,7 +2489,7 @@ window.__ModuleLoader__.load({
         strip: modes.strip,
         float: modes.float,
         context: readStored(STORE_CONTEXT, HIDE, [SHOW, HIDE]),
-        harness: readStored(STORE_HARNESS, HIDE, [SHOW, HIDE]),
+        harness: readStored(STORE_HARNESS, SHOW, [SHOW, HIDE]),
         phrases: readStored(STORE_PHRASES, ''),
         widthStep: readStoredIndex(STORE_WIDTH, WIDTH_DEFAULT, WIDTH_STEPS.length),
         heightStep: readStoredIndex(STORE_HEIGHT, HEIGHT_DEFAULT, HEIGHT_STEPS.length),
@@ -2808,7 +2810,7 @@ window.__ModuleLoader__.load({
                 writeStored(STORE_STRIP, SHOW);
                 writeStored(STORE_FLOAT, HIDE);
                 writeStored(STORE_CONTEXT, HIDE);
-                writeStored(STORE_HARNESS, HIDE);
+                writeStored(STORE_HARNESS, SHOW);
                 writeStored(STORE_FLOATPOS, 'null');
                 writeStored(STORE_PHRASES, '');
                 writeStored(STORE_WIDTH, String(WIDTH_DEFAULT));
@@ -2927,8 +2929,8 @@ window.__ModuleLoader__.load({
       'settings.phrases': 'phrases',
       'phrases.placeholder': 'one phrase per line, e.g. Cogitating / Jitterbugging',
       'settings.harness': 'harness bar',
-      'harness.title.show': "show the harness's own status line beside the strip",
-      'harness.title.hide': "hide the harness's own status line",
+      'harness.title.show': "keep the harness's own context ring beside the strip",
+      'harness.title.hide': "hide the harness's own context ring",
       'settings.context': 'context gauge',
       'context.title.show': 'show the context window gauge on the strip',
       'context.title.hide': 'hide the context window gauge',
@@ -3058,8 +3060,8 @@ window.__ModuleLoader__.load({
       'settings.phrases': '自定义短语',
       'phrases.placeholder': '每行一句，随意添加，例如：Cogitating / Jitterbugging',
       'settings.harness': 'Harness 状态栏',
-      'harness.title.show': '在状态条旁边显示 Harness 自带的状态栏',
-      'harness.title.hide': '隐藏 Harness 自带的状态栏',
+      'harness.title.show': '保留 Harness 自带的上下文圆环',
+      'harness.title.hide': '隐藏 Harness 自带的上下文圆环',
       'settings.context': '上下文仪表',
       'context.title.show': '在状态条上显示上下文窗口仪表',
       'context.title.hide': '隐藏上下文窗口仪表',

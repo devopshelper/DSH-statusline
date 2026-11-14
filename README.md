@@ -180,20 +180,22 @@ The same strip can sit in two places, chosen in Settings → Plugins:
 |---|---|---|
 | **status line** | the strip sits in the dock under the composer and owns the hover panel | nothing is docked; the floating card (if on) is the only copy |
 | **status card** | the strip floats over the conversation, draggable by its body | no floating bar |
-| **harness bar** | the harness's own status line is kept, under the strip | it is hidden, since the strip reports the same figures |
+| **harness bar** | the harness's own context ring is kept beside the strip | it is hidden, since the strip can show the same figure as its context gauge |
 
-The first two are alternatives, not layers: choosing one switches the other off, so the same line is never drawn twice. The third is independent of both — it decides whether the harness's own line exists beside ours, and it is the only thing that decides. The floating copy is a bar, not a second panel.
+The first two are alternatives, not layers: choosing one switches the other off, so the same line is never drawn twice. The third is independent of both — it decides whether the harness's own status exists beside ours, and it is the only thing that decides. The floating copy is a bar, not a second panel.
 
-**harness bar** works through one marker class on the shell, and the hiding rule is the only consumer of it. The line puts the marker on directly; the floating-only mode leaves a hidden marker in the dock so the same rule still applies. The rule is structural, so it can only hide siblings of the shell that are not the shell and not the context ring:
+In this harness version the composer dock no longer carries a line of shipped pills: its only shipped status is the context ring. **harness bar** therefore defaults to on and controls that ring; turning it off hides the ring (the strip's own opt-in context gauge can take its place).
+
+**harness bar** works through one marker class on the shell, and the hiding rule is the only consumer of it. The line puts the marker on directly; the floating-only mode leaves a hidden marker in the dock so the same rule still applies. The rule is structural, so it can only hide siblings of the shell that are not the shell:
 
 ```css
 :is(div,section,ul):has(>.dsh-sb-shell.sb-hide-default) > *
   :not(.dsh-sb-shell)          /* our shell itself */
   :not(:has(.dsh-sb-shell))    /* whatever wrapper holds it */
-  :not(:has(svg[viewBox="0 0 14 14"])) { display: none }
+  { display: none }
 ```
 
-With **harness bar** on, or with every presentation off, there is no marker in the dock, so nothing is hidden. The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching; nothing else is ever hidden.
+With **harness bar** on, or with every presentation off, there is no marker in the dock, so nothing is hidden. The first two exclusions are not the same test — `:has()` only looks at descendants, so the shell never matches the second one. If the owner restructures the dock the selector stops matching; nothing else is ever hidden. The old version also excluded any element containing a 14×14 svg, which kept the context ring alive; that exclusion is gone, because the ring is exactly what this switch controls now.
 
 ### The floating card
 
